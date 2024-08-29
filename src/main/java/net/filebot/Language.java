@@ -7,12 +7,9 @@ import static java.util.stream.Collectors.*;
 import static net.filebot.Logging.*;
 import static net.filebot.util.RegularExpressions.*;
 
+import java.io.IOException;
 import java.io.Serializable;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.MissingResourceException;
-import java.util.ResourceBundle;
+import java.util.*;
 import java.util.stream.Stream;
 
 public class Language implements Serializable {
@@ -31,6 +28,8 @@ public class Language implements Serializable {
 
 	// Language name
 	private final String[] names;
+
+	private static final Properties LANGUAGE_PROPERTIES = getLanguageProperties();
 
 	public Language(String iso_639_1, String iso_639_3, String iso_639_2B, String tag, String[] names) {
 		this.iso_639_1 = iso_639_1;
@@ -152,10 +151,21 @@ public class Language implements Serializable {
 
 	private static String getProperty(String key) {
 		try {
-			return ResourceBundle.getBundle(Language.class.getName()).getString(key);
+			return LANGUAGE_PROPERTIES.getProperty(key);
 		} catch (MissingResourceException e) {
 			throw new IllegalArgumentException("Illegal language code: " + key);
 		}
+	}
+
+	private static Properties getLanguageProperties() {
+		Properties properties = new Properties();
+		try (var stream = Settings.class.getClassLoader().getResourceAsStream("language.properties")) {
+			properties.load(stream);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+
+		return properties;
 	}
 
 }
