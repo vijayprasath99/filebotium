@@ -1,0 +1,141 @@
+plugins {
+  id 'java'
+  id 'application'
+  id 'org.javamodularity.moduleplugin' version '1.8.12'
+  id 'org.openjfx.javafxplugin' version '0.1.0'
+  id 'org.beryx.jlink' version '2.25.0'
+}
+
+group 'net.filebot'
+version '1.0-SNAPSHOT'
+
+repositories {
+  mavenCentral()
+  maven {
+    url = "https://repository.jboss.org/nexus/content/repositories/thirdparty-releases/"
+  }
+  flatDir {
+    dirs("libs")
+  }
+}
+
+ext {
+  junitVersion = '5.9.2'
+}
+
+sourceCompatibility = '11'
+targetCompatibility = '11'
+
+tasks.withType(JavaCompile) {
+  options.encoding = 'UTF-8'
+}
+
+application {
+  mainModule = 'net.filebot.filebotium2'
+  mainClass = 'net.filebot.filebotium2.HelloApplication'
+}
+
+javafx {
+//  version = '11.0.6'
+  modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.web', 'javafx.swing' ]
+}
+
+dependencies {
+  // https://mvnrepository.com/artifact/org.kohsuke.args4j/args4j-maven-plugin
+  implementation 'org.kohsuke.args4j:args4j-maven-plugin:2.33'
+  implementation('org.controlsfx:controlsfx:11.1.2')
+  implementation('com.dlsc.formsfx:formsfx-core:11.6.0') {
+    exclude(group: 'org.openjfx')
+  }
+  implementation('net.synedra:validatorfx:0.4.0') {
+    exclude(group: 'org.openjfx')
+  }
+  implementation('org.kordamp.ikonli:ikonli-javafx:12.3.1')
+  implementation('org.kordamp.bootstrapfx:bootstrapfx-core:0.4.0')
+//  implementation('eu.hansolo:tilesfx:17.1.17') {
+//    exclude(group: 'org.openjfx')
+//  }
+
+  // https://mvnrepository.com/artifact/org.apache.commons/commons-vfs2
+  implementation 'org.apache.commons:commons-vfs2:2.2'
+
+  implementation('com.github.almasb:fxgl:11.17') {
+    exclude(group: 'org.openjfx')
+    exclude(group: 'org.jetbrains.kotlin')
+  }
+  implementation "net.java.dev.jna:jna:4.5.2"
+  implementation "net.java.dev.jna:jna-platform:4.5.2"
+  implementation "args4j:args4j:2.33"
+  implementation "net.sf.ehcache:ehcache:2.10.5"
+  implementation "com.google.guava:guava:27.0.1-jre"
+  implementation "com.github.ben-manes.caffeine:caffeine:2.6.2"
+  implementation "com.github.mpkorstanje:simmetrics-core:4.1.1"
+  implementation "com.ibm.icu:icu4j:61.1"
+  implementation "org.jsoup:jsoup:1.11.3"
+  implementation "org.tukaani:xz:1.8"
+  implementation "javax.xml.bind:jaxb-api:2.3.0" // May need a specific implementation
+  implementation "com.cedarsoftware:json-io:4.10.0"
+  implementation "commons-io:commons-io:2.6"
+  implementation "commons-net:commons-net:3.6"
+  implementation "org.slf4j:slf4j-jdk14:1.7.25"  // Consider using a binding (e.g. logback)
+  implementation "net.java.dev.glazedlists:glazedlists_java16:1.10.0"  // Check for newer versions
+  implementation "com.miglayout:miglayout-swing:5.2"  // Likely a typo in original (version 5?)
+//  implementation "commons-vfs2:commons-vfs2:2.2"  // Group likely "org.apache.commons"
+  implementation "com.github.junrar:junrar:3.1.0"
+  implementation "com.fifesoft:rsyntaxtextarea:3.0.0"
+  implementation "com.fifesoft:autocomplete:3.0.0"
+  implementation "net.sf.sevenzipjbinding:sevenzipjbinding:9.20-2.00beta"
+  implementation "net.sf.sevenzipjbinding:sevenzipjbinding-all-platforms:9.20-2.00beta"
+  implementation "com.optimaize.languagedetector:language-detector:0.6"
+  implementation "com.dampcake:bencode:1.2.1"
+  implementation "one.util:streamex:0.6.7"
+  implementation "com.googlecode.lanterna:lanterna:3.0.1"
+  implementation "com.drewnoakes:metadata-extractor:2.11.0"
+//  implementation "org.bouncycastle:bcprov-jdk15on:1.59"
+  // https://mvnrepository.com/artifact/org.bouncycastle/bcpg-jdk15to18
+  implementation 'org.bouncycastle:bcpg-jdk15to18:1.63'
+
+
+  implementation "org.imgscalr:imgscalr-lib:4.2"  // Likely a typo in original (version 4?)
+
+//  // https://mvnrepository.com/artifact/ca.weblite/java-objc-bridge
+//  implementation 'ca.weblite:java-objc-bridge:1.2'
+  implementation files('libs/ObjCBridge.jar')
+
+
+  // https://mvnrepository.com/artifact/redstone.xmlrpc/xmlrpc
+  implementation 'redstone.xmlrpc:xmlrpc:1.1.1'
+
+
+
+  implementation 'org.codehaus.groovy:groovy:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-jsr223:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-ant:2.5.6'
+
+  implementation 'org.codehaus.groovy:groovy-json:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-xml:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-datetime:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-dateutil:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-templates:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-nio:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-swing:2.5.6'
+  implementation 'org.codehaus.groovy:groovy-groovydoc:2.5.6'
+
+  testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
+  testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
+}
+
+test {
+useJUnitPlatform()}
+
+jlink {
+  imageZip = project.file("${buildDir}/distributions/app-${javafx.platform.classifier}.zip")
+  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
+  launcher {
+    name = 'app'
+  }
+}
+
+jlinkZip {
+  group = 'distribution'
+}
