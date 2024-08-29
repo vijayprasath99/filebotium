@@ -5,14 +5,9 @@ import static net.filebot.Logging.*;
 import static net.filebot.util.FileUtilities.*;
 import static net.filebot.util.PGP.*;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.ResourceBundle;
 import java.util.logging.Level;
 import java.util.prefs.BackingStoreException;
@@ -30,6 +25,7 @@ import net.filebot.util.ui.SwingEventBus;
 public final class Settings {
 
 	public static final LicenseModel LICENSE = getLicenseModel();
+	private static final Properties APPLICATION_PROPERTIES = getApplicationProperties();
 
 	public static String getApplicationName() {
 		return getApplicationProperty("application.name");
@@ -48,7 +44,18 @@ public final class Settings {
 	}
 
 	public static String getApplicationProperty(String key) {
-		return ResourceBundle.getBundle(Settings.class.getName(), Locale.ROOT).getString(key);
+		return APPLICATION_PROPERTIES.getProperty(key);
+	}
+
+	private static Properties getApplicationProperties() {
+		Properties properties = new Properties();
+		try (var stream = Settings.class.getClassLoader().getResourceAsStream("application.properties")) {
+			properties.load(stream);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+
+		return properties;
 	}
 
 	public static String getApiKey(String name) {

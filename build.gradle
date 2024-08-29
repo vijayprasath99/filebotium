@@ -31,14 +31,21 @@ tasks.withType(JavaCompile) {
 }
 
 application {
-  mainModule = 'net.filebot.filebotium2'
-  mainClass = 'net.filebot.filebotium2.HelloApplication'
+  mainClass = 'net.filebot.Main'
 }
 
 javafx {
 //  version = '11.0.6'
   modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.web', 'javafx.swing' ]
 }
+
+//sourceSets {
+//  main {
+//    resources {
+//      srcDirs "src/main/resources"
+//    }
+//  }
+//}
 
 dependencies {
   // https://mvnrepository.com/artifact/org.kohsuke.args4j/args4j-maven-plugin
@@ -126,7 +133,8 @@ dependencies {
 }
 
 test {
-useJUnitPlatform()}
+  useJUnitPlatform()
+}
 
 jlink {
   imageZip = project.file("${buildDir}/distributions/app-${javafx.platform.classifier}.zip")
