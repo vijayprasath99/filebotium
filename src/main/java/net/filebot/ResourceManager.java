@@ -82,7 +82,7 @@ public final class ResourceManager {
 	}
 
 	private static URL getImageResource(String name) {
-		return ResourceManager.class.getResource("resources/" + name + ".png");
+		return ResourceManager.class.getClassLoader().getResource("assets/icons/" + name + ".png");
 	}
 
 	private static final float PRIMARY_SCALE_FACTOR = SystemProperty.of("sun.java2d.uiScale", Float::parseFloat, Toolkit.getDefaultToolkit().getScreenResolution() / 96f).get();
