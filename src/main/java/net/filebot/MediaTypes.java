@@ -3,13 +3,10 @@ package net.filebot;
 import static java.util.Collections.*;
 import static net.filebot.util.RegularExpressions.*;
 
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.ResourceBundle;
+import java.util.stream.Collectors;
 
 import net.filebot.util.FileUtilities.ExtensionFileFilter;
 
@@ -20,15 +17,34 @@ public class MediaTypes {
 	private static Map<String, ExtensionFileFilter> getKnownMediaTypes() {
 		Map<String, ExtensionFileFilter> types = new LinkedHashMap<String, ExtensionFileFilter>(64);
 
-		ResourceBundle bundle = ResourceBundle.getBundle(MediaTypes.class.getName());
-		for (Enumeration<String> keys = bundle.getKeys(); keys.hasMoreElements();) {
-			String type = keys.nextElement();
-			String[] extensions = SPACE.split(bundle.getString(type));
+		return getMediaTypeProperties()
+				.entrySet()
+				.stream()
+				.collect(
+				Collectors.toMap(
+                        Entry::getKey,
+						e -> new ExtensionFileFilter(
+							SPACE.split(e.getValue())
+						)
+				)
+		);
+	}
 
-			types.put(type, new ExtensionFileFilter(extensions));
+	private static Map<String, String> getMediaTypeProperties() {
+		try (var stream = Settings.class.getClassLoader().getResourceAsStream("MediaTypes.properties")) {
+			Properties props = new Properties();
+			props.load(stream);
+			return props.entrySet()
+					.stream()
+					.collect(
+					Collectors.toMap(
+							e -> e.getKey().toString(),
+							e -> e.getValue().toString()
+					)
+			);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
-
-		return types;
 	}
 
 	public static void main(String[] args) {
