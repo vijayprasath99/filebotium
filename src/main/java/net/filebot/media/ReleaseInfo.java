@@ -15,22 +15,14 @@ import static net.filebot.util.StringUtilities.*;
 
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOException;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.text.Collator;
 import java.text.Normalizer;
 import java.text.Normalizer.Form;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.regex.Matcher;
@@ -55,6 +47,8 @@ public class ReleaseInfo {
 
 	private String[] videoSources;
 	private Pattern videoSourcePattern;
+
+	private static Properties RELEASE_INFO_PROPERTIES = getReleaseInfoProperties();
 
 	public String getVideoSource(String... input) {
 		if (videoSources == null || videoSourcePattern == null) {
@@ -508,7 +502,19 @@ public class ReleaseInfo {
 
 	protected String getProperty(String name) {
 		// override resource locations via Java System properties
-		return System.getProperty(name, getBundle(ReleaseInfo.class.getName()).getString(name));
+//		return System.getProperty(name, getBundle(ReleaseInfo.class.getName()).getString(name));
+		return RELEASE_INFO_PROPERTIES.getProperty(name);
+	}
+
+	private static Properties getReleaseInfoProperties() {
+		Properties properties = new Properties();
+		try (var stream = ReleaseInfo.class.getClassLoader().getResourceAsStream("ReleaseInfo.properties")) {
+			properties.load(stream);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+
+		return properties;
 	}
 
 	public static class FolderEntryFilter implements FileFilter {
