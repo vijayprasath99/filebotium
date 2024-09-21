@@ -12,11 +12,9 @@ import net.filebot.util.FileUtilities.ExtensionFileFilter;
 
 public class MediaTypes {
 
-	private static Map<String, ExtensionFileFilter> types = getKnownMediaTypes();
+	private static final Map<String, ExtensionFileFilter> KNOWN_MEDIA_TYPES = getKnownMediaTypes();
 
 	private static Map<String, ExtensionFileFilter> getKnownMediaTypes() {
-		Map<String, ExtensionFileFilter> types = new LinkedHashMap<String, ExtensionFileFilter>(64);
-
 		return getMediaTypeProperties()
 				.entrySet()
 				.stream()
@@ -25,7 +23,9 @@ public class MediaTypes {
                         Entry::getKey,
 						e -> new ExtensionFileFilter(
 							SPACE.split(e.getValue())
-						)
+						),
+						(oldValue, newValue) -> newValue,
+						LinkedHashMap::new
 				)
 		);
 	}
@@ -48,11 +48,11 @@ public class MediaTypes {
 	}
 
 	public static void main(String[] args) {
-		System.out.println(MediaTypes.types);
+		System.out.println(MediaTypes.KNOWN_MEDIA_TYPES);
 	}
 
 	public static String getMediaType(String extension) {
-		for (Entry<String, ExtensionFileFilter> it : types.entrySet()) {
+		for (Entry<String, ExtensionFileFilter> it : KNOWN_MEDIA_TYPES.entrySet()) {
 			if (it.getValue().acceptExtension(extension)) {
 				return it.getKey();
 			}
@@ -61,13 +61,13 @@ public class MediaTypes {
 	}
 
 	public static ExtensionFileFilter getTypeFilter(String name) {
-		return types.get(name);
+		return KNOWN_MEDIA_TYPES.get(name);
 	}
 
 	public static ExtensionFileFilter getCategoryFilter(String category) {
 		List<String> extensions = new ArrayList<String>();
 
-		for (Entry<String, ExtensionFileFilter> it : types.entrySet()) {
+		for (Entry<String, ExtensionFileFilter> it : KNOWN_MEDIA_TYPES.entrySet()) {
 			if (it.getKey().startsWith(category)) {
 				addAll(extensions, it.getValue().extensions());
 			}
