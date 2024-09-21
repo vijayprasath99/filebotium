@@ -106,8 +106,8 @@ dependencies {
   implementation "org.imgscalr:imgscalr-lib:4.2"  // Likely a typo in original (version 4?)
 
 //  // https://mvnrepository.com/artifact/ca.weblite/java-objc-bridge
-//  implementation 'ca.weblite:java-objc-bridge:1.2'
-  implementation files('libs/ObjCBridge.jar')
+  implementation 'ca.weblite:java-objc-bridge:1.2'
+//  implementation files('libs/ObjCBridge.jar')
 
 
   // https://mvnrepository.com/artifact/redstone.xmlrpc/xmlrpc

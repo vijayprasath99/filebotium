@@ -29,7 +29,7 @@ public class MacAppUtilities {
 
 	public static Client objc() {
 		if (_objc == null) {
-			_objc = new Client();
+			_objc = Client.getInstance();
 		}
 		return _objc;
 	}
@@ -54,7 +54,7 @@ public class MacAppUtilities {
 
 		// WARNING: dispatch_sync seems to work on most Mac always causes a deadlock and freezes the application on others (in particular MBP with 2 graphics chips)
 		dispatch_async(() -> {
-			Pointer pool = createAutoreleasePool();
+//			Pointer pool = createAutoreleasePool();
 			Proxy peer = objc().sendProxy("NSOpenPanel", "openPanel");
 			peer.send("retain");
 
@@ -81,7 +81,7 @@ public class MacAppUtilities {
 				}
 			}
 
-			drainAutoreleasePool(pool);
+//			drainAutoreleasePool(pool);
 			secondaryLoop.exit();
 		});
 
