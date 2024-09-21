@@ -605,7 +605,7 @@ public final class SwingUI {
 			new JFXPanel();
 
 			// disable JavaFX exit
-			Platform.setImplicitExit(false);
+//			Platform.setImplicitExit(false);
 		}
 	}
 
