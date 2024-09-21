@@ -159,7 +159,7 @@ public class Language implements Serializable {
 
 	private static Properties getLanguageProperties() {
 		Properties properties = new Properties();
-		try (var stream = Settings.class.getClassLoader().getResourceAsStream("language.properties")) {
+		try (var stream = Settings.class.getClassLoader().getResourceAsStream("Language.properties")) {
 			properties.load(stream);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
