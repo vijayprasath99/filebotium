@@ -35,7 +35,7 @@ application {
 }
 
 javafx {
-//  version = '11.0.6'
+  version = '17.0.6'
   modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.web', 'javafx.swing' ]
 }
 
@@ -62,6 +62,10 @@ dependencies {
 //  implementation('eu.hansolo:tilesfx:17.1.17') {
 //    exclude(group: 'org.openjfx')
 //  }
+
+  // https://mvnrepository.com/artifact/org.openjfx/javafx
+  implementation 'org.openjfx:javafx:17'
+
 
   // https://mvnrepository.com/artifact/org.apache.commons/commons-vfs2
   implementation 'org.apache.commons:commons-vfs2:2.2'
@@ -146,4 +150,16 @@ jlink {
 
 jlinkZip {
   group = 'distribution'
+}
+
+jar {
+  manifest {
+    attributes(
+            'Main-Class': 'net.filebot.Main'
+    )
+  }
+  duplicatesStrategy "exclude"
+  from {
+    configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+  }
 }
