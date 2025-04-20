@@ -12,9 +12,12 @@ OpenJDK 64-Bit Server VM Homebrew (build 11.0.24+0, mixed mode)
 ### Build and Run
 #### Run as Jar
 ```
-./gadlew jar
+./gradlew jar
 cd build/libs
-java -jar filebot-1.0-SNAPSHOT.jar 
+java -jar filebot-1.0-SNAPSHOT.jar
+
+./gradlew runtime
+./build/install/filebot/bin/filebot
 ```
 
 #### In Idea
