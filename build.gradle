@@ -3,7 +3,8 @@ plugins {
   id 'application'
   id 'org.javamodularity.moduleplugin' version '1.8.12'
   id 'org.openjfx.javafxplugin' version '0.1.0'
-  id 'org.beryx.jlink' version '2.25.0'
+//  id 'org.beryx.jlink' version '2.25.0'
+  id 'org.beryx.runtime' version '1.13.1'
 }
 
 group 'net.filebot'
@@ -13,6 +14,7 @@ repositories {
   mavenCentral()
   maven {
     url = "https://repository.jboss.org/nexus/content/repositories/thirdparty-releases/"
+    allowInsecureProtocol = true
   }
   flatDir {
     dirs("libs")
@@ -136,21 +138,26 @@ dependencies {
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
 }
 
+runtime {
+  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
+  modules = ['java.naming', 'java.xml']
+}
+
 test {
   useJUnitPlatform()
 }
 
-jlink {
-  imageZip = project.file("${buildDir}/distributions/app-${javafx.platform.classifier}.zip")
-  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
-  launcher {
-    name = 'app'
-  }
-}
+//jlink {
+//  imageZip = project.file("${buildDir}/distributions/app-${javafx.platform.classifier}.zip")
+//  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
+//  launcher {
+//    name = 'app'
+//  }
+//}
 
-jlinkZip {
-  group = 'distribution'
-}
+//jlinkZip {
+//  group = 'distribution'
+//}
 
 jar {
   manifest {
