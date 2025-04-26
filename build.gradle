@@ -5,6 +5,7 @@ plugins {
   id 'org.openjfx.javafxplugin' version '0.1.0'
 //  id 'org.beryx.jlink' version '2.25.0'
   id 'org.beryx.runtime' version '1.13.1'
+  id 'edu.sc.seis.launch4j' version '3.0.6'
 }
 
 group 'net.filebot'
@@ -169,4 +170,8 @@ jar {
   from {
     configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
   }
+}
+
+launch4j {
+  mainClassName = 'net.filebot.Main'
 }

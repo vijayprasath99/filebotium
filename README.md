@@ -20,5 +20,10 @@ java -jar filebot-1.0-SNAPSHOT.jar
 ./build/install/filebot/bin/filebot
 ```
 
+#### Build Windows Image
+```
+.\gradlew.bat createExe 
+```
+
 #### In Idea
 Import Project as a "JavaFx" Project.
