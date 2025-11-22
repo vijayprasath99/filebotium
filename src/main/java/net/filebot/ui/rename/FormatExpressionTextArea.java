@@ -28,7 +28,7 @@ public class FormatExpressionTextArea extends RSyntaxTextArea {
     try {
       Theme.load(
               FormatExpressionTextArea.class.getResourceAsStream(
-                  "FormatExpressionTextArea.Theme.xml"))
+                  "/FormatExpressionTextArea.Theme.xml"))
           .apply(this);
     } catch (Exception e) {
       debug.log(Level.WARNING, e, e::toString);

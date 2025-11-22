@@ -46,10 +46,10 @@ public final class ResourceManager {
   }
 
   public static List<Image> getApplicationIconImages() {
-    return Stream.of("window.icon16", "window.icon64")
-        .map(ResourceManager::getMultiResolutionImageResource)
-        .map(ResourceManager::getMultiResolutionImage)
-        .collect(toList());
+    Stream<URL[]> stream =
+        Stream.of("window.icon16", "window.icon64")
+            .map(ResourceManager::getMultiResolutionImageResource);
+    return stream.map(ResourceManager::getMultiResolutionImage).collect(toList());
   }
 
   public static Icon getFlagIcon(String languageCode) {
@@ -87,7 +87,7 @@ public final class ResourceManager {
   }
 
   private static URL getImageResource(String name) {
-    return ResourceManager.class.getClassLoader().getResource("assets/icons/" + name + ".png");
+    return ResourceManager.class.getResource("/assets/icons/" + name + ".png");
   }
 
   private static final float PRIMARY_SCALE_FACTOR =
