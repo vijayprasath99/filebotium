@@ -5,6 +5,7 @@ plugins {
   id 'org.openjfx.javafxplugin' version '0.1.0'
   id 'org.beryx.jlink' version '3.0.1'
   id 'edu.sc.seis.launch4j' version '3.0.6'
+  id 'com.diffplug.spotless' version '8.1.0'
 }
 
 group 'net.filebot'
@@ -196,4 +197,11 @@ jar {
 
 launch4j {
   mainClassName = 'net.filebot.Main'
+}
+
+spotless {
+  java {
+    target 'src/*/java/**/*.java'
+    googleJavaFormat()
+  }
 }

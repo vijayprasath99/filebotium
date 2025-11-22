@@ -10,42 +10,46 @@ import java.util.prefs.PreferencesFactory;
 
 public class FilePreferencesFactory implements PreferencesFactory {
 
-	private final static FilePreferences userRoot = createRootNode(getBackingStoreFile());
+  private static final FilePreferences userRoot = createRootNode(getBackingStoreFile());
 
-	@Override
-	public Preferences systemRoot() {
-		return userRoot;
-	}
+  @Override
+  public Preferences systemRoot() {
+    return userRoot;
+  }
 
-	@Override
-	public Preferences userRoot() {
-		return userRoot;
-	}
+  @Override
+  public Preferences userRoot() {
+    return userRoot;
+  }
 
-	public static FilePreferences createRootNode(Path backingStoreFile) {
-		FilePreferences node = new FilePreferences(new PropertyFileBackingStore(backingStoreFile));
+  public static FilePreferences createRootNode(Path backingStoreFile) {
+    FilePreferences node = new FilePreferences(new PropertyFileBackingStore(backingStoreFile));
 
-		// restore preferences
-		try {
-			node.sync();
-		} catch (Exception e) {
-			Logger.getLogger(FilePreferences.class.getName()).log(Level.WARNING, "Failed to load preferences: " + backingStoreFile, e);
-		}
+    // restore preferences
+    try {
+      node.sync();
+    } catch (Exception e) {
+      Logger.getLogger(FilePreferences.class.getName())
+          .log(Level.WARNING, "Failed to load preferences: " + backingStoreFile, e);
+    }
 
-		// store preferences on exit
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-			try {
-				userRoot.flush();
-			} catch (BackingStoreException e) {
-				Logger.getLogger(FilePreferences.class.getName()).log(Level.WARNING, "Failed to save preferences: " + backingStoreFile, e);
-			}
-		}));
+    // store preferences on exit
+    Runtime.getRuntime()
+        .addShutdownHook(
+            new Thread(
+                () -> {
+                  try {
+                    userRoot.flush();
+                  } catch (BackingStoreException e) {
+                    Logger.getLogger(FilePreferences.class.getName())
+                        .log(Level.WARNING, "Failed to save preferences: " + backingStoreFile, e);
+                  }
+                }));
 
-		return node;
-	}
+    return node;
+  }
 
-	public static Path getBackingStoreFile() {
-		return Paths.get(System.getProperty("net.filebot.util.prefs.file", "prefs.properties"));
-	}
-
+  public static Path getBackingStoreFile() {
+    return Paths.get(System.getProperty("net.filebot.util.prefs.file", "prefs.properties"));
+  }
 }

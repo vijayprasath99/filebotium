@@ -1,4 +1,3 @@
-
 package net.filebot.format;
 
 import static java.lang.annotation.ElementType.*;
@@ -13,7 +12,7 @@ import java.lang.annotation.Target;
 @Target(METHOD)
 public @interface Define {
 
-	String[] value();
+  String[] value();
 
-	static final String undefined = "";
+  static final String undefined = "";
 }

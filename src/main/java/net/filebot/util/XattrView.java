@@ -5,12 +5,11 @@ import java.util.List;
 
 public interface XattrView {
 
-	public List<String> list() throws IOException;
+  public List<String> list() throws IOException;
 
-	public String read(String key) throws IOException;
+  public String read(String key) throws IOException;
 
-	public void write(String key, String value) throws IOException;
+  public void write(String key, String value) throws IOException;
 
-	public void delete(String key) throws IOException;
-
+  public void delete(String key) throws IOException;
 }

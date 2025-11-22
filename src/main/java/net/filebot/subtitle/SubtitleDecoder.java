@@ -4,6 +4,5 @@ import java.util.stream.Stream;
 
 public interface SubtitleDecoder {
 
-	Stream<SubtitleElement> decode(String file);
-
+  Stream<SubtitleElement> decode(String file);
 }

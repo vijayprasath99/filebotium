@@ -8,54 +8,50 @@ import java.util.EnumSet;
 import java.util.logging.Level;
 
 public enum ArchiveType {
+  ZIP {
 
-	ZIP {
+    @Override
+    public Iterable<MemoryFile> fromData(ByteBuffer data) {
+      return new ZipArchive(data);
+    }
+  },
 
-		@Override
-		public Iterable<MemoryFile> fromData(ByteBuffer data) {
-			return new ZipArchive(data);
-		}
-	},
+  UNDEFINED {
 
-	UNDEFINED {
+    @Override
+    public Iterable<MemoryFile> fromData(ByteBuffer data) {
+      for (ArchiveType type : EnumSet.of(ZIP)) {
+        try {
+          Iterable<MemoryFile> files = type.fromData(data);
+          if (files.iterator().hasNext()) {
+            return files;
+          }
+        } catch (Exception e) {
+          debug.log(Level.WARNING, e, e::toString);
+        }
+      }
 
-		@Override
-		public Iterable<MemoryFile> fromData(ByteBuffer data) {
-			for (ArchiveType type : EnumSet.of(ZIP)) {
-				try {
-					Iterable<MemoryFile> files = type.fromData(data);
-					if (files.iterator().hasNext()) {
-						return files;
-					}
-				} catch (Exception e) {
-					debug.log(Level.WARNING, e, e::toString);
-				}
-			}
+      // cannot extract data, return empty archive
+      return emptySet();
+    }
+  },
 
-			// cannot extract data, return empty archive
-			return emptySet();
-		}
-	},
+  UNKOWN {
 
-	UNKOWN {
+    @Override
+    public Iterable<MemoryFile> fromData(ByteBuffer data) {
+      // cannot extract data, return empty archive
+      return emptySet();
+    }
+  };
 
-		@Override
-		public Iterable<MemoryFile> fromData(ByteBuffer data) {
-			// cannot extract data, return empty archive
-			return emptySet();
-		}
-	};
+  public abstract Iterable<MemoryFile> fromData(ByteBuffer data);
 
-	public abstract Iterable<MemoryFile> fromData(ByteBuffer data);
+  public static ArchiveType forName(String name) {
+    if (name == null) return UNDEFINED;
 
-	public static ArchiveType forName(String name) {
-		if (name == null)
-			return UNDEFINED;
+    if ("zip".equalsIgnoreCase(name)) return ZIP;
 
-		if ("zip".equalsIgnoreCase(name))
-			return ZIP;
-
-		return UNKOWN;
-	}
-
+    return UNKOWN;
+  }
 }

@@ -1,80 +1,76 @@
-
 package net.filebot.subtitle;
 
 import java.util.Scanner;
-
 import net.filebot.MediaTypes;
 import net.filebot.util.FileUtilities.ExtensionFileFilter;
 
 public enum SubtitleFormat {
+  SubRip {
 
-	SubRip {
+    @Override
+    public SubtitleDecoder getDecoder() {
+      return content -> new SubRipReader(new Scanner(content)).stream();
+    }
 
-		@Override
-		public SubtitleDecoder getDecoder() {
-			return content -> new SubRipReader(new Scanner(content)).stream();
-		}
+    @Override
+    public ExtensionFileFilter getFilter() {
+      return MediaTypes.getTypeFilter("subtitle/SubRip");
+    }
+  },
 
-		@Override
-		public ExtensionFileFilter getFilter() {
-			return MediaTypes.getTypeFilter("subtitle/SubRip");
-		}
-	},
+  MicroDVD {
 
-	MicroDVD {
+    @Override
+    public SubtitleDecoder getDecoder() {
+      return content -> new MicroDVDReader(new Scanner(content)).stream();
+    }
 
-		@Override
-		public SubtitleDecoder getDecoder() {
-			return content -> new MicroDVDReader(new Scanner(content)).stream();
-		}
+    @Override
+    public ExtensionFileFilter getFilter() {
+      return MediaTypes.getTypeFilter("subtitle/MicroDVD");
+    }
+  },
 
-		@Override
-		public ExtensionFileFilter getFilter() {
-			return MediaTypes.getTypeFilter("subtitle/MicroDVD");
-		}
-	},
+  SubViewer {
 
-	SubViewer {
+    @Override
+    public SubtitleDecoder getDecoder() {
+      return content -> new SubViewerReader(new Scanner(content)).stream();
+    }
 
-		@Override
-		public SubtitleDecoder getDecoder() {
-			return content -> new SubViewerReader(new Scanner(content)).stream();
-		}
+    @Override
+    public ExtensionFileFilter getFilter() {
+      return MediaTypes.getTypeFilter("subtitle/SubViewer");
+    }
+  },
 
-		@Override
-		public ExtensionFileFilter getFilter() {
-			return MediaTypes.getTypeFilter("subtitle/SubViewer");
-		}
-	},
+  SubStationAlpha {
 
-	SubStationAlpha {
+    @Override
+    public SubtitleDecoder getDecoder() {
+      return content -> new SubStationAlphaReader(new Scanner(content)).stream();
+    }
 
-		@Override
-		public SubtitleDecoder getDecoder() {
-			return content -> new SubStationAlphaReader(new Scanner(content)).stream();
-		}
+    @Override
+    public ExtensionFileFilter getFilter() {
+      return MediaTypes.getTypeFilter("subtitle/SubStationAlpha");
+    }
+  },
 
-		@Override
-		public ExtensionFileFilter getFilter() {
-			return MediaTypes.getTypeFilter("subtitle/SubStationAlpha");
-		}
-	},
+  SAMI {
 
-	SAMI {
+    @Override
+    public SubtitleDecoder getDecoder() {
+      return new SamiDecoder();
+    }
 
-		@Override
-		public SubtitleDecoder getDecoder() {
-			return new SamiDecoder();
-		}
+    @Override
+    public ExtensionFileFilter getFilter() {
+      return MediaTypes.getTypeFilter("subtitle/SAMI");
+    }
+  };
 
-		@Override
-		public ExtensionFileFilter getFilter() {
-			return MediaTypes.getTypeFilter("subtitle/SAMI");
-		}
-	};
+  public abstract SubtitleDecoder getDecoder();
 
-	public abstract SubtitleDecoder getDecoder();
-
-	public abstract ExtensionFileFilter getFilter();
-
+  public abstract ExtensionFileFilter getFilter();
 }
