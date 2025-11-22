@@ -60,7 +60,7 @@ public enum XattrChecksum {
 	}
 
 	public void clear(File file) {
-		cache.invalidate(cache);
+		cache.invalidate(file);
 
 		if (useExtendedFileAttributes) {
 			try {

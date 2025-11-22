@@ -1,4 +1,4 @@
-This is fork of one of these repos (I forgot which one)
+This is fork of one of these repos (I forgot which one, if I think hard enough, it might come back to me)
 https://github.com/mobeigi/filebot
 https://github.com/barry-allen07/FB-Mod
 
