@@ -6,12 +6,7 @@ This is fork of one of these repos (I forgot which one, if I think hard enough, 
 - https://github.com/mobeigi/filebot
 - https://github.com/barry-allen07/FB-Mod
 
-## Features
-
-- Rename TV shows and movies with ease
-- Download subtitles from various sources
-- Validate SFV checksums
-- Cross-platform support (Windows, macOS, Linux)
+> Please consider supporting the original developer if you appreciate this project. Be aware that the feature set is dated, and some functionality may not perform as intended. This repository is best suited for learning purposes or for private, non-production use.
 
 ## Requirements
 
