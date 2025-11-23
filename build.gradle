@@ -28,13 +28,13 @@ ext {
 
 java {
   toolchain {
-    languageVersion = JavaLanguageVersion.of(17)
+    languageVersion = JavaLanguageVersion.of(21)
   }
 }
 
 tasks.withType(JavaCompile) {
   options.encoding = 'UTF-8'
-  options.release = 17
+  options.release = 21
 }
 
 application {
@@ -167,11 +167,65 @@ dependencies {
 jlink {
   options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
   addExtraDependencies('javafx')
+  
   launcher {
     name = 'filebot'
+    jvmArgs = [
+      '-Xmx2g',
+      '-XX:+UseG1GC',
+      '-XX:+UseStringDeduplication'
+    ]
   }
+  
   jpackage {
-    // Optional: Configure jpackage settings
+    // Application metadata
+    appVersion = project.version.toString().replace('-SNAPSHOT', '')
+    
+    // Installer options - will be customized per platform in CI
+    installerType = project.findProperty('installerType') ?: 'app-image'
+    
+    // Application icon - using the highest resolution PNG available
+    // Note: For production, you should convert these to platform-specific formats:
+    // - macOS: .icns (can be created from PNG using iconutil)
+    // - Windows: .ico (can be created from PNG using ImageMagick)
+    // - Linux: .png is native
+    def iconFile = file("${projectDir}/src/main/resources/assets/icons/window.icon64@2x.png")
+    if (iconFile.exists()) {
+      icon = iconFile
+    }
+    
+    // JVM arguments for the packaged application
+    jvmArgs = [
+      '-Xmx2g',
+      '-XX:+UseG1GC',
+      '-XX:+UseStringDeduplication'
+    ]
+    
+    // Installer options
+    installerOptions = [
+      '--vendor', 'FileBot',
+      '--description', 'FileBot - The ultimate TV and Movie Renamer',
+      '--copyright', 'Copyright © 2025 FileBot'
+    ]
+    
+    // Platform-specific installer options
+    if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
+      installerOptions += [
+        '--mac-package-name', 'FileBot',
+        '--mac-package-identifier', 'net.filebot.FileBot'
+      ]
+    } else if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
+      installerOptions += [
+        '--win-dir-chooser',
+        '--win-menu',
+        '--win-shortcut'
+      ]
+    } else if (org.gradle.internal.os.OperatingSystem.current().isLinux()) {
+      installerOptions += [
+        '--linux-package-name', 'filebot',
+        '--linux-shortcut'
+      ]
+    }
   }
 }
 
