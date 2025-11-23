@@ -7,86 +7,74 @@ import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
-
 import net.filebot.util.FileUtilities.ExtensionFileFilter;
 
 public class MediaTypes {
 
-	private static final Map<String, ExtensionFileFilter> KNOWN_MEDIA_TYPES = getKnownMediaTypes();
+  private static final Map<String, ExtensionFileFilter> KNOWN_MEDIA_TYPES = getKnownMediaTypes();
 
-	private static Map<String, ExtensionFileFilter> getKnownMediaTypes() {
-		return getMediaTypeProperties()
-				.entrySet()
-				.stream()
-				.collect(
-				Collectors.toMap(
-                        Entry::getKey,
-						e -> new ExtensionFileFilter(
-							SPACE.split(e.getValue())
-						),
-						(oldValue, newValue) -> newValue,
-						LinkedHashMap::new
-				)
-		);
-	}
+  private static Map<String, ExtensionFileFilter> getKnownMediaTypes() {
+    return getMediaTypeProperties().entrySet().stream()
+        .collect(
+            Collectors.toMap(
+                Entry::getKey,
+                e -> new ExtensionFileFilter(SPACE.split(e.getValue())),
+                (oldValue, newValue) -> newValue,
+                LinkedHashMap::new));
+  }
 
-	private static Map<String, String> getMediaTypeProperties() {
-		try (var stream = Settings.class.getClassLoader().getResourceAsStream("MediaTypes.properties")) {
-			Properties props = new Properties();
-			props.load(stream);
-			return props.entrySet()
-					.stream()
-					.collect(
-					Collectors.toMap(
-							e -> e.getKey().toString(),
-							e -> e.getValue().toString()
-					)
-			);
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-	}
+  private static Map<String, String> getMediaTypeProperties() {
+    try (var stream =
+        Settings.class.getClassLoader().getResourceAsStream("MediaTypes.properties")) {
+      Properties props = new Properties();
+      props.load(stream);
+      return props.entrySet().stream()
+          .collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
 
-	public static void main(String[] args) {
-		System.out.println(MediaTypes.KNOWN_MEDIA_TYPES);
-	}
+  public static void main(String[] args) {
+    System.out.println(MediaTypes.KNOWN_MEDIA_TYPES);
+  }
 
-	public static String getMediaType(String extension) {
-		for (Entry<String, ExtensionFileFilter> it : KNOWN_MEDIA_TYPES.entrySet()) {
-			if (it.getValue().acceptExtension(extension)) {
-				return it.getKey();
-			}
-		}
-		return null;
-	}
+  public static String getMediaType(String extension) {
+    for (Entry<String, ExtensionFileFilter> it : KNOWN_MEDIA_TYPES.entrySet()) {
+      if (it.getValue().acceptExtension(extension)) {
+        return it.getKey();
+      }
+    }
+    return null;
+  }
 
-	public static ExtensionFileFilter getTypeFilter(String name) {
-		return KNOWN_MEDIA_TYPES.get(name);
-	}
+  public static ExtensionFileFilter getTypeFilter(String name) {
+    return KNOWN_MEDIA_TYPES.get(name);
+  }
 
-	public static ExtensionFileFilter getCategoryFilter(String category) {
-		List<String> extensions = new ArrayList<String>();
+  public static ExtensionFileFilter getCategoryFilter(String category) {
+    List<String> extensions = new ArrayList<String>();
 
-		for (Entry<String, ExtensionFileFilter> it : KNOWN_MEDIA_TYPES.entrySet()) {
-			if (it.getKey().startsWith(category)) {
-				addAll(extensions, it.getValue().extensions());
-			}
-		}
+    for (Entry<String, ExtensionFileFilter> it : KNOWN_MEDIA_TYPES.entrySet()) {
+      if (it.getKey().startsWith(category)) {
+        addAll(extensions, it.getValue().extensions());
+      }
+    }
 
-		return new ExtensionFileFilter(extensions);
-	}
+    return new ExtensionFileFilter(extensions);
+  }
 
-	public static final ExtensionFileFilter AUDIO_FILES = getCategoryFilter("audio");
-	public static final ExtensionFileFilter VIDEO_FILES = getCategoryFilter("video");
-	public static final ExtensionFileFilter SUBTITLE_FILES = getCategoryFilter("subtitle");
-	public static final ExtensionFileFilter IMAGE_FILES = getCategoryFilter("image");
-	public static final ExtensionFileFilter ARCHIVE_FILES = getCategoryFilter("archive");
-	public static final ExtensionFileFilter VERIFICATION_FILES = getCategoryFilter("verification");
+  public static final ExtensionFileFilter AUDIO_FILES = getCategoryFilter("audio");
+  public static final ExtensionFileFilter VIDEO_FILES = getCategoryFilter("video");
+  public static final ExtensionFileFilter SUBTITLE_FILES = getCategoryFilter("subtitle");
+  public static final ExtensionFileFilter IMAGE_FILES = getCategoryFilter("image");
+  public static final ExtensionFileFilter ARCHIVE_FILES = getCategoryFilter("archive");
+  public static final ExtensionFileFilter VERIFICATION_FILES = getCategoryFilter("verification");
 
-	public static final ExtensionFileFilter NFO_FILES = getTypeFilter("application/nfo");
-	public static final ExtensionFileFilter LIST_FILES = getTypeFilter("application/list");
-	public static final ExtensionFileFilter TORRENT_FILES = getTypeFilter("application/torrent");
+  public static final ExtensionFileFilter NFO_FILES = getTypeFilter("application/nfo");
+  public static final ExtensionFileFilter LIST_FILES = getTypeFilter("application/list");
+  public static final ExtensionFileFilter TORRENT_FILES = getTypeFilter("application/torrent");
 
-	public static final ExtensionFileFilter LICENSE_FILES = getTypeFilter("application/filebot-license");
-
+  public static final ExtensionFileFilter LICENSE_FILES =
+      getTypeFilter("application/filebot-license");
 }

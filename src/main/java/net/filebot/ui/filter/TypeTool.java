@@ -14,12 +14,10 @@ import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
-
 import javax.swing.JScrollPane;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreeNode;
-
 import net.filebot.MediaTypes;
 import net.filebot.media.MediaDetection;
 import net.filebot.ui.filter.FileTree.FolderNode;
@@ -29,78 +27,78 @@ import net.miginfocom.swing.MigLayout;
 
 class TypeTool extends Tool<TreeModel> {
 
-	private FileTree tree = new FileTree();
+  private FileTree tree = new FileTree();
 
-	public TypeTool() {
-		super("Types");
+  public TypeTool() {
+    super("Types");
 
-		setLayout(new MigLayout("insets 0, fill"));
-		JScrollPane treeScrollPane = new JScrollPane(tree);
-		treeScrollPane.setBorder(createEmptyBorder());
+    setLayout(new MigLayout("insets 0, fill"));
+    JScrollPane treeScrollPane = new JScrollPane(tree);
+    treeScrollPane.setBorder(createEmptyBorder());
 
-		add(new LoadingOverlayPane(treeScrollPane, this), "grow");
+    add(new LoadingOverlayPane(treeScrollPane, this), "grow");
 
-		tree.setTransferHandler(new DefaultTransferHandler(null, new FileTreeExportHandler()));
-		tree.setDragEnabled(true);
-	}
+    tree.setTransferHandler(new DefaultTransferHandler(null, new FileTreeExportHandler()));
+    tree.setDragEnabled(true);
+  }
 
-	@Override
-	protected TreeModel createModelInBackground(List<File> root) {
-		if (root.isEmpty()) {
-			return new DefaultTreeModel(new FolderNode("Types", emptyList()));
-		}
+  @Override
+  protected TreeModel createModelInBackground(List<File> root) {
+    if (root.isEmpty()) {
+      return new DefaultTreeModel(new FolderNode("Types", emptyList()));
+    }
 
-		List<File> filesAndFolders = listFiles(root, NOT_HIDDEN, HUMAN_NAME_ORDER);
+    List<File> filesAndFolders = listFiles(root, NOT_HIDDEN, HUMAN_NAME_ORDER);
 
-		List<TreeNode> groups = new ArrayList<TreeNode>();
+    List<TreeNode> groups = new ArrayList<TreeNode>();
 
-		for (Entry<String, FileFilter> it : getMetaTypes().entrySet()) {
-			List<File> selection = filter(filesAndFolders, it.getValue());
-			if (selection.size() > 0) {
-				groups.add(createStatisticsNode(it.getKey(), selection));
-			}
+    for (Entry<String, FileFilter> it : getMetaTypes().entrySet()) {
+      List<File> selection = filter(filesAndFolders, it.getValue());
+      if (selection.size() > 0) {
+        groups.add(createStatisticsNode(it.getKey(), selection));
+      }
 
-			if (Thread.interrupted()) {
-				throw new CancellationException();
-			}
-		}
+      if (Thread.interrupted()) {
+        throw new CancellationException();
+      }
+    }
 
-		SortedMap<String, TreeNode> extensionGroups = new TreeMap<String, TreeNode>(String.CASE_INSENSITIVE_ORDER);
+    SortedMap<String, TreeNode> extensionGroups =
+        new TreeMap<String, TreeNode>(String.CASE_INSENSITIVE_ORDER);
 
-		for (Entry<String, List<File>> it : mapByExtension(filter(filesAndFolders, FILES)).entrySet()) {
-			if (it.getKey() != null) {
-				extensionGroups.put(it.getKey(), createStatisticsNode(it.getKey(), it.getValue()));
-			}
+    for (Entry<String, List<File>> it : mapByExtension(filter(filesAndFolders, FILES)).entrySet()) {
+      if (it.getKey() != null) {
+        extensionGroups.put(it.getKey(), createStatisticsNode(it.getKey(), it.getValue()));
+      }
 
-			if (Thread.interrupted()) {
-				throw new CancellationException();
-			}
-		}
+      if (Thread.interrupted()) {
+        throw new CancellationException();
+      }
+    }
 
-		groups.addAll(extensionGroups.values());
+    groups.addAll(extensionGroups.values());
 
-		// create tree model
-		return new DefaultTreeModel(new FolderNode("Types", groups));
-	}
+    // create tree model
+    return new DefaultTreeModel(new FolderNode("Types", groups));
+  }
 
-	public Map<String, FileFilter> getMetaTypes() {
-		Map<String, FileFilter> types = new LinkedHashMap<String, FileFilter>();
-		types.put("Movie", f -> MediaDetection.isMovie(f, true));
-		types.put("Episode", f -> MediaDetection.isEpisode(f, true));
-		types.put("Disk Folder", MediaDetection.getDiskFolderFilter());
-		types.put("Video", MediaTypes.VIDEO_FILES);
-		types.put("Subtitle", MediaTypes.SUBTITLE_FILES);
-		types.put("Audio", MediaTypes.AUDIO_FILES);
-		types.put("Archive", MediaTypes.ARCHIVE_FILES);
-		types.put("Verification", MediaTypes.VERIFICATION_FILES);
-		types.put("Extras", MediaDetection.getClutterFileFilter());
-		types.put("Clutter", MediaDetection.getClutterTypeFilter());
-		return types;
-	}
+  public Map<String, FileFilter> getMetaTypes() {
+    Map<String, FileFilter> types = new LinkedHashMap<String, FileFilter>();
+    types.put("Movie", f -> MediaDetection.isMovie(f, true));
+    types.put("Episode", f -> MediaDetection.isEpisode(f, true));
+    types.put("Disk Folder", MediaDetection.getDiskFolderFilter());
+    types.put("Video", MediaTypes.VIDEO_FILES);
+    types.put("Subtitle", MediaTypes.SUBTITLE_FILES);
+    types.put("Audio", MediaTypes.AUDIO_FILES);
+    types.put("Archive", MediaTypes.ARCHIVE_FILES);
+    types.put("Verification", MediaTypes.VERIFICATION_FILES);
+    types.put("Extras", MediaDetection.getClutterFileFilter());
+    types.put("Clutter", MediaDetection.getClutterTypeFilter());
+    return types;
+  }
 
-	@Override
-	protected void setModel(TreeModel model) {
-		tree.setModel(model);
-	}
-
+  @Override
+  protected void setModel(TreeModel model) {
+    tree.setModel(model);
+  }
 }

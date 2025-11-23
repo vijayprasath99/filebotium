@@ -6,10 +6,9 @@ package net.filebot.util.ui.notification;
 
 public interface NotificationLayout {
 
-	public void add(NotificationWindow notification);
+  public void add(NotificationWindow notification);
 
-	public void remove(NotificationWindow notification);
+  public void remove(NotificationWindow notification);
 
-	public int size();
-
+  public int size();
 }

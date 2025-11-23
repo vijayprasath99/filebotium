@@ -4,14 +4,13 @@ import java.io.File;
 
 public interface FileInfo {
 
-	public String getPath();
+  public String getPath();
 
-	public String getName();
+  public String getName();
 
-	public String getType();
+  public String getType();
 
-	public long getLength();
+  public long getLength();
 
-	public File toFile();
-
+  public File toFile();
 }

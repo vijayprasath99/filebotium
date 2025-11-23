@@ -5,24 +5,23 @@ import java.time.Instant;
 
 public interface MediaCharacteristics extends AutoCloseable {
 
-	String getVideoCodec();
+  String getVideoCodec();
 
-	String getAudioCodec();
+  String getAudioCodec();
 
-	String getAudioLanguage();
+  String getAudioLanguage();
 
-	String getSubtitleCodec();
+  String getSubtitleCodec();
 
-	Duration getDuration();
+  Duration getDuration();
 
-	Integer getWidth();
+  Integer getWidth();
 
-	Integer getHeight();
+  Integer getHeight();
 
-	Float getFrameRate();
+  Float getFrameRate();
 
-	String getTitle();
+  String getTitle();
 
-	Instant getCreationTime();
-
+  Instant getCreationTime();
 }
