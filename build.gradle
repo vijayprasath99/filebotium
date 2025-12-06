@@ -65,8 +65,10 @@ dependencies {
   // JavaFX base - metapackage
   implementation 'org.openjfx:javafx:21'
 
-  // Apache Commons VFS
-  implementation 'org.apache.commons:commons-vfs2:2.9.0'
+  // Apache Commons VFS (excluding Hadoop HDFS support - not needed)
+  implementation('org.apache.commons:commons-vfs2:2.9.0') {
+    exclude group: 'org.apache.hadoop', module: 'hadoop-hdfs-client'
+  }
 
   // FXGL (JavaFX Game Library)
   implementation('com.github.almasb:fxgl:17.3') {
