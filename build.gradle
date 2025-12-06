@@ -167,7 +167,7 @@ dependencies {
 }
 
 jlink {
-  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
+  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages', '--ignore-signing-information']
   addExtraDependencies('javafx')
   addExtraDependencies('commons-io', 'commons-net')
   
