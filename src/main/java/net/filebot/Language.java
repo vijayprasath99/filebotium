@@ -1,11 +1,14 @@
 package net.filebot;
 
-import static java.util.Arrays.*;
-import static java.util.Collections.*;
-import static java.util.Comparator.*;
-import static java.util.stream.Collectors.*;
-import static net.filebot.Logging.*;
-import static net.filebot.util.RegularExpressions.*;
+import static java.util.Arrays.asList;
+import static java.util.Arrays.stream;
+import static java.util.Collections.unmodifiableList;
+import static java.util.Comparator.comparing;
+import static java.util.stream.Collectors.toList;
+import static net.filebot.Logging.cause;
+import static net.filebot.Logging.debug;
+import static net.filebot.util.RegularExpressions.SPACE;
+import static net.filebot.util.RegularExpressions.TAB;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -165,7 +168,7 @@ public class Language implements Serializable {
 
   private static Properties getLanguageProperties() {
     Properties properties = new Properties();
-    try (var stream = Settings.class.getClassLoader().getResourceAsStream("Language.properties")) {
+    try (var stream = Settings.class.getClassLoader().getResourceAsStream("language.properties")) {
       properties.load(stream);
     } catch (IOException e) {
       throw new RuntimeException(e);
