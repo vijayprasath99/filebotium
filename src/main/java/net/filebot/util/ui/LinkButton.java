@@ -1,5 +1,7 @@
 package net.filebot.util.ui;
 
+import net.filebot.Settings;
+
 import static net.filebot.Logging.*;
 
 import java.awt.Color;
@@ -28,6 +30,7 @@ public class LinkButton extends JButton {
   public LinkButton(Action action) {
     setAction(action);
 
+    setFocusable(false);
     setFocusPainted(false);
     setOpaque(false);
     setContentAreaFilled(false);
