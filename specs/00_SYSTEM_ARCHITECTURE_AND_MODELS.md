@@ -39,9 +39,75 @@ The target architecture for the migrated FileBot application decouples the legac
 
 ---
 
-## 2. Core Domain Models & Data Transfer Objects (DTOs)
+## 2. Shared Core Domain Enums
 
-### 2.1 MediaFile Model
+To ensure type safety across the entire API contract and avoid stringly-typed anti-patterns, the following Java Enums and TypeScript Enums/Unions define the domain vocabulary:
+
+```java
+package net.filebot.backend.domain;
+
+public enum ProviderType {
+    THE_TVDB, THE_MOVIE_DB, ANI_DB, TV_MAZE, OMDB, ACOUSTID, OPEN_SUBTITLES, SHOOTER
+}
+
+public enum MatchingMode {
+    TV, MOVIE, MUSIC, ANIME, AUTO
+}
+
+public enum FileAction {
+    MOVE, COPY, HARDLINK, SYMLINK
+}
+
+public enum ConflictStrategy {
+    OVERWRITE, FAIL, SKIP, AUTO_RENAME
+}
+
+public enum MatchStatus {
+    MATCHED, CONFLICT, MANUAL, PENDING, EXCLUDED
+}
+
+public enum HistoryStatus {
+    COMPLETED, ROLLED_BACK, FAILED
+}
+
+public enum HashType {
+    CRC32, MD5, SHA_1, SHA_256, OPENSUBTITLES
+}
+
+public enum ChecksumStatus {
+    OK, MISMATCH, MISSING, ERROR, COMPUTING
+}
+
+public enum SubtitleProviderType {
+    OPEN_SUBTITLES, SHOOTER
+}
+
+public enum SubtitleFormat {
+    SRT, SUB, ASS, VTT
+}
+
+public enum NotificationLevel {
+    INFO, WARNING, ERROR, SUCCESS
+}
+
+public enum WorkspaceTab {
+    RENAME, EPISODES, SUBTITLES, SFV, ANALYZE, LIST
+}
+
+public enum LanguageCode {
+    EN, DE, FR, ES, IT, JA, ZH, KO, RU, PT, NL, SV, NO, DA, FI, PL
+}
+
+public enum EpisodeSortOrder {
+    AIR_DATE, ABSOLUTE, DVD
+}
+```
+
+---
+
+## 3. Core Domain Models & Data Transfer Objects (DTOs)
+
+### 3.1 MediaFile Model
 Represents a local disk file inspected or manipulated by the system.
 
 **Java Record Specification:**
@@ -84,18 +150,20 @@ export interface MediaFile {
 
 ---
 
-### 2.2 Episode Model
+### 3.2 Episode Model
 Represents episode metadata fetched from providers (TheTVDB, TMDb, AniDB, TVMaze).
 
 **Java Record Specification:**
 ```java
 package net.filebot.backend.dto;
 
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.ProviderType;
 import java.io.Serializable;
 import java.time.LocalDate;
 
 public record EpisodeDto(
-    String provider,
+    ProviderType provider,
     String seriesName,
     Integer seriesId,
     Integer seasonNumber,
@@ -103,15 +171,18 @@ public record EpisodeDto(
     Integer absoluteNumber,
     String title,
     LocalDate releaseDate,
-    String language,
+    LanguageCode language,
     String overview
 ) implements Serializable {}
 ```
 
 **TypeScript Model:**
 ```typescript
+export type ProviderType = 'THE_TVDB' | 'THE_MOVIE_DB' | 'ANI_DB' | 'TV_MAZE' | 'OMDB' | 'ACOUSTID' | 'OPEN_SUBTITLES' | 'SHOOTER';
+export type LanguageCode = 'EN' | 'DE' | 'FR' | 'ES' | 'IT' | 'JA' | 'ZH' | 'KO' | 'RU' | 'PT' | 'NL' | 'SV' | 'NO' | 'DA' | 'FI' | 'PL';
+
 export interface Episode {
-  provider: 'TheTVDB' | 'TMDb' | 'AniDB' | 'TVMaze';
+  provider: ProviderType;
   seriesName: string;
   seriesId: number;
   seasonNumber: number | null;
@@ -119,29 +190,31 @@ export interface Episode {
   absoluteNumber: number | null;
   title: string;
   releaseDate: string | null; // YYYY-MM-DD
-  language: string;
+  language: LanguageCode;
   overview?: string;
 }
 ```
 
 ---
 
-### 2.3 Movie Model
+### 3.3 Movie Model
 Represents movie metadata fetched from providers (TMDb, OMDb).
 
 **Java Record Specification:**
 ```java
 package net.filebot.backend.dto;
 
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.ProviderType;
 import java.io.Serializable;
 
 public record MovieDto(
-    String provider,
+    ProviderType provider,
     String title,
     Integer year,
     Integer tmdbId,
     String imdbId,
-    String language,
+    LanguageCode language,
     String overview
 ) implements Serializable {}
 ```
@@ -149,25 +222,26 @@ public record MovieDto(
 **TypeScript Model:**
 ```typescript
 export interface Movie {
-  provider: 'TMDb' | 'OMDb';
+  provider: ProviderType;
   title: string;
   year: number | null;
   tmdbId: number | null;
   imdbId: string | null;
-  language: string;
+  language: LanguageCode;
   overview?: string;
 }
 ```
 
 ---
 
-### 2.4 Match Model
+### 3.4 Match Model
 Pairs a source `MediaFile` with a target metadata object (`Episode`, `Movie`, or `AudioTrack`) and calculated similarity metrics.
 
 **Java Record Specification:**
 ```java
 package net.filebot.backend.dto;
 
+import net.filebot.backend.domain.MatchStatus;
 import java.io.Serializable;
 
 public record MatchDto(
@@ -178,12 +252,14 @@ public record MatchDto(
     String formattedName,
     String formattedPath,
     boolean isExcluded,
-    String status // 'MATCHED', 'CONFLICT', 'MANUAL'
+    MatchStatus status
 ) implements Serializable {}
 ```
 
 **TypeScript Model:**
 ```typescript
+export type MatchStatus = 'MATCHED' | 'CONFLICT' | 'MANUAL' | 'PENDING' | 'EXCLUDED';
+
 export interface Match {
   matchId: string;
   sourceFile: MediaFile;
@@ -192,19 +268,21 @@ export interface Match {
   formattedName: string;
   formattedPath: string;
   isExcluded: boolean;
-  status: 'MATCHED' | 'CONFLICT' | 'MANUAL';
+  status: MatchStatus;
 }
 ```
 
 ---
 
-### 2.5 History & Transaction Models
+### 3.5 History & Transaction Models
 Logs file operations (`MOVE`, `COPY`, `HARDLINK`, `SYMLINK`) for rollback.
 
 **Java Record Specification:**
 ```java
 package net.filebot.backend.dto;
 
+import net.filebot.backend.domain.FileAction;
+import net.filebot.backend.domain.HistoryStatus;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.List;
@@ -212,8 +290,8 @@ import java.util.List;
 public record HistoryElementDto(
     String sourcePath,
     String targetPath,
-    String action, // MOVE, COPY, HARDLINK, SYMLINK
-    String status  // COMPLETED, ROLLED_BACK, FAILED
+    FileAction action,
+    HistoryStatus status
 ) implements Serializable {}
 
 public record HistoryTransactionDto(
@@ -225,11 +303,14 @@ public record HistoryTransactionDto(
 
 **TypeScript Model:**
 ```typescript
+export type FileAction = 'MOVE' | 'COPY' | 'HARDLINK' | 'SYMLINK';
+export type HistoryStatus = 'COMPLETED' | 'ROLLED_BACK' | 'FAILED';
+
 export interface HistoryElement {
   sourcePath: string;
   targetPath: string;
-  action: 'MOVE' | 'COPY' | 'HARDLINK' | 'SYMLINK';
-  status: 'COMPLETED' | 'ROLLED_BACK' | 'FAILED';
+  action: FileAction;
+  status: HistoryStatus;
 }
 
 export interface HistoryTransaction {
@@ -241,20 +322,25 @@ export interface HistoryTransaction {
 
 ---
 
-### 2.6 Subtitle & Checksum Models
+### 3.6 Subtitle & Checksum Models
 
 **Java Record Specification:**
 ```java
 package net.filebot.backend.dto;
 
+import net.filebot.backend.domain.ChecksumStatus;
+import net.filebot.backend.domain.HashType;
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.SubtitleFormat;
+import net.filebot.backend.domain.SubtitleProviderType;
 import java.io.Serializable;
 
 public record SubtitleDescriptorDto(
-    String provider,
+    SubtitleProviderType provider,
     String id,
     String name,
-    String language,
-    String format,
+    LanguageCode language,
+    SubtitleFormat format,
     double score,
     String downloadUrl
 ) implements Serializable {}
@@ -263,19 +349,24 @@ public record ChecksumEntryDto(
     String path,
     String expectedHash,
     String calculatedHash,
-    String hashType, // CRC32, MD5, SHA-1, SHA-256
-    String status    // OK, MISMATCH, MISSING, ERROR
+    HashType hashType,
+    ChecksumStatus status
 ) implements Serializable {}
 ```
 
 **TypeScript Model:**
 ```typescript
+export type HashType = 'CRC32' | 'MD5' | 'SHA_1' | 'SHA_256' | 'OPENSUBTITLES';
+export type ChecksumStatus = 'OK' | 'MISMATCH' | 'MISSING' | 'ERROR' | 'COMPUTING';
+export type SubtitleProviderType = 'OPEN_SUBTITLES' | 'SHOOTER';
+export type SubtitleFormat = 'SRT' | 'SUB' | 'ASS' | 'VTT';
+
 export interface SubtitleDescriptor {
-  provider: 'OpenSubtitles' | 'Shooter';
+  provider: SubtitleProviderType;
   id: string;
   name: string;
-  language: string;
-  format: string;
+  language: LanguageCode;
+  format: SubtitleFormat;
   score: number;
   downloadUrl: string;
 }
@@ -284,14 +375,14 @@ export interface ChecksumEntry {
   path: string;
   expectedHash: string | null;
   calculatedHash: string | null;
-  hashType: 'CRC32' | 'MD5' | 'SHA-1' | 'SHA-256';
-  status: 'OK' | 'MISMATCH' | 'MISSING' | 'ERROR';
+  hashType: HashType;
+  status: ChecksumStatus;
 }
 ```
 
 ---
 
-## 3. Communication Strategy: REST & WebSocket / SSE
+## 4. Communication Strategy: REST & WebSocket / SSE
 
 - **REST API:** Handles synchronous request/response operations (fetching settings, triggering searches, evaluating single format expressions, initiating file renaming).
 - **STOMP over WebSocket (`/ws` endpoint):** Handles real-time progress updates for long-running asynchronous tasks (batch matching, multi-file hash verification, subtitle batch downloading, file batch renaming).
@@ -299,7 +390,7 @@ export interface ChecksumEntry {
 
 ---
 
-## 4. Async Event Loop, Thread Pools, and Resource Management
+## 5. Async Event Loop, Thread Pools, and Resource Management
 
 ```java
 @Configuration
@@ -332,7 +423,7 @@ public class AsyncConfig {
 
 ---
 
-## 5. Security & Persistence Architecture
+## 6. Security & Persistence Architecture
 
 1. **Local Security Model:**
    - When executed as a local desktop app sidecar, the Spring Boot application binds strictly to `127.0.0.1`.

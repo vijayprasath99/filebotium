@@ -50,6 +50,7 @@
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.dto.BindingDocumentationDto;
 import net.filebot.backend.dto.FormatEvaluationResultDto;
 import java.util.List;
 import java.util.Map;
@@ -57,8 +58,12 @@ import java.util.Map;
 public interface FormatExpressionEngineService {
     FormatEvaluationResultDto evaluateExpression(String expression, Object metadataContext, String filePath);
     List<FormatEvaluationResultDto> batchEvaluate(String expression, List<String> filePaths);
-    Map<String, String> getAvailableBindings(String filePath, Object metadataContext);
+    List<BindingDocumentationDto> getAvailableBindings(String filePath, Object metadataContext);
     boolean validateExpressionSyntax(String expression);
+}
+
+public enum BindingCategory {
+    GENERAL, VIDEO, AUDIO, SERIES, MOVIE
 }
 
 public record FormatEvaluationRequestDto(
@@ -79,7 +84,7 @@ public record BindingDocumentationDto(
     String bindingKey,
     String description,
     String exampleValue,
-    String category
+    BindingCategory category
 ) {}
 ```
 
@@ -119,7 +124,7 @@ public record BindingDocumentationDto(
 #### 2. Get Bindings Catalog Endpoint
 - **Method:** `GET`
 - **Path:** `/api/v1/format/bindings`
-- **Response JSON Schema:** List of `BindingDocumentationDto` objects categorized by `General`, `Video`, `Audio`, `Series`, `Movie`.
+- **Response JSON Schema:** List of `BindingDocumentationDto` objects categorized by `GENERAL`, `VIDEO`, `AUDIO`, `SERIES`, `MOVIE`.
 
 ---
 
@@ -144,6 +149,8 @@ FormatEditorModal
 ### Props & State Types (TypeScript)
 
 ```typescript
+export type BindingCategory = 'GENERAL' | 'VIDEO' | 'AUDIO' | 'SERIES' | 'MOVIE';
+
 export interface FormatEditorProps {
   isOpen: boolean;
   initialExpression: string;
@@ -156,7 +163,7 @@ export interface BindingDocumentation {
   bindingKey: string;
   description: string;
   exampleValue: string;
-  category: 'General' | 'Video' | 'Audio' | 'Series' | 'Movie';
+  category: BindingCategory;
 }
 
 export interface FormatEvaluationResult {

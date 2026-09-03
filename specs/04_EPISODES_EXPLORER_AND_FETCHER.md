@@ -40,28 +40,38 @@
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.domain.EpisodeSortOrder;
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.ProviderType;
 import net.filebot.backend.dto.EpisodeDto;
 import net.filebot.backend.dto.SearchResultDto;
 import java.util.List;
 
 public interface EpisodeFetcherService {
-    List<SearchResultDto> searchSeries(String query, String provider, String language);
-    List<EpisodeDto> getEpisodes(int seriesId, String provider, String sortOrder, String language);
-    List<String> getFormattedEpisodeList(int seriesId, String provider, String sortOrder, String language, String formatExpression);
+    List<SearchResultDto> searchSeries(SeriesSearchRequestDto request);
+    List<EpisodeDto> getEpisodes(EpisodeFetchRequestDto request);
+    List<String> getFormattedEpisodeList(EpisodeFetchRequestDto request, String formatExpression);
 }
 
 public record SeriesSearchRequestDto(
     String query,
-    String provider, // TheTVDB, TMDb, AniDB, TVMaze
-    String language  // en, de, fr, es, etc.
+    ProviderType provider,
+    LanguageCode language
 ) {}
 
 public record EpisodeFetchRequestDto(
     int seriesId,
-    String provider,
-    String sortOrder, // Airdate, Absolute, DVD
-    String language,
+    ProviderType provider,
+    EpisodeSortOrder sortOrder,
+    LanguageCode language,
     Integer seasonFilter
+) {}
+
+public record SearchResultDto(
+    int id,
+    String name,
+    Integer year,
+    ProviderType provider
 ) {}
 ```
 
@@ -70,7 +80,7 @@ public record EpisodeFetchRequestDto(
 #### 1. Search Series Endpoint
 - **Method:** `GET`
 - **Path:** `/api/v1/episodes/search`
-- **Query Parameters:** `query` (string), `provider` (string), `language` (string)
+- **Query Parameters:** `query` (string), `provider` (`THE_TVDB`, `THE_MOVIE_DB`, `ANI_DB`, `TV_MAZE`), `language` (`EN`, `DE`, `FR`, `ES`, etc.)
 - **Response JSON Schema:**
 ```json
 {
@@ -82,7 +92,7 @@ public record EpisodeFetchRequestDto(
       "id": { "type": "integer" },
       "name": { "type": "string" },
       "year": { "type": "integer" },
-      "provider": { "type": "string" }
+      "provider": { "type": "string", "enum": ["THE_TVDB", "THE_MOVIE_DB", "ANI_DB", "TV_MAZE"] }
     }
   }
 }
@@ -91,7 +101,7 @@ public record EpisodeFetchRequestDto(
 #### 2. Fetch Episodes Endpoint
 - **Method:** `GET`
 - **Path:** `/api/v1/episodes/series/{seriesId}`
-- **Query Parameters:** `provider` (string), `sortOrder` (string), `language` (string), `season` (optional integer)
+- **Query Parameters:** `provider` (`ProviderType`), `sortOrder` (`AIR_DATE`, `ABSOLUTE`, `DVD`), `language` (`LanguageCode`), `season` (optional integer)
 - **Response JSON Schema:** List of `EpisodeDto` objects.
 
 ---
@@ -117,12 +127,15 @@ EpisodesExplorerPanel
 ### Props & State Types (TypeScript)
 
 ```typescript
+import { ProviderType, EpisodeSortOrder, LanguageCode, Episode, SearchResult } from './types';
+
 export interface EpisodesExplorerState {
-  provider: 'TheTVDB' | 'TMDb' | 'AniDB' | 'TVMaze';
+  provider: ProviderType;
   searchQuery: string;
   selectedSeries: SearchResult | null;
   seasonFilter: number | 'ALL';
-  language: string;
+  language: LanguageCode;
+  sortOrder: EpisodeSortOrder;
   episodes: Episode[];
   isLoading: boolean;
   formattedPreview: string[];

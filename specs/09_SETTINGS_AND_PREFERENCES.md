@@ -29,6 +29,9 @@
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.domain.FileAction;
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.ProviderType;
 import net.filebot.backend.dto.AppSettingsDto;
 import net.filebot.backend.dto.ProviderCredentialDto;
 
@@ -40,8 +43,8 @@ public interface SettingsService {
 }
 
 public record AppSettingsDto(
-    String defaultLanguage,
-    String defaultAction, // MOVE, COPY, HARDLINK, SYMLINK
+    LanguageCode defaultLanguage,
+    FileAction defaultAction,
     String tvFormat,
     String movieFormat,
     String musicFormat,
@@ -51,7 +54,7 @@ public record AppSettingsDto(
 ) {}
 
 public record ProviderCredentialDto(
-    String providerName, // TheTVDB, TMDb, OpenSubtitles, OMDb, FanartTV
+    ProviderType provider,
     String apiKey,
     String username,
     String password
@@ -93,15 +96,24 @@ SettingsPanel
 ### Props & State Types (TypeScript)
 
 ```typescript
+import { FileAction, LanguageCode, ProviderType } from './types';
+
 export interface AppSettings {
-  defaultLanguage: string;
-  defaultAction: 'MOVE' | 'COPY' | 'HARDLINK' | 'SYMLINK';
+  defaultLanguage: LanguageCode;
+  defaultAction: FileAction;
   tvFormat: string;
   movieFormat: string;
   musicFormat: string;
   animeFormat: string;
   filterHiddenFiles: boolean;
   recursiveSearch: boolean;
+}
+
+export interface ProviderCredential {
+  provider: ProviderType;
+  apiKey: string;
+  username?: string;
+  password?: string;
 }
 ```
 

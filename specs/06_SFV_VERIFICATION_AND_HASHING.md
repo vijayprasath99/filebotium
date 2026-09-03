@@ -38,20 +38,27 @@
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.domain.HashType;
 import net.filebot.backend.dto.ChecksumEntryDto;
 import java.util.List;
 
 public interface ChecksumService {
-    String startVerificationTask(List<String> filePaths, String hashType, String sfvFilePath);
+    String startVerificationTask(ChecksumVerificationRequestDto request);
     void cancelVerificationTask(String taskId);
     List<ChecksumEntryDto> parseVerificationFile(String sfvFilePath);
-    String generateVerificationFileContent(List<ChecksumEntryDto> entries, String hashType);
+    String generateVerificationFileContent(ChecksumExportRequestDto request);
 }
 
 public record ChecksumVerificationRequestDto(
     List<String> filePaths,
-    String hashType, // CRC32, MD5, SHA-1, SHA-256
+    HashType hashType,
     String sfvFilePath
+) {}
+
+public record ChecksumExportRequestDto(
+    List<ChecksumEntryDto> entries,
+    HashType hashType,
+    String outputPath
 ) {}
 
 public record ChecksumProgressEventDto(
@@ -77,7 +84,7 @@ public record ChecksumProgressEventDto(
   "type": "object",
   "properties": {
     "filePaths": { "type": "array", "items": { "type": "string" } },
-    "hashType": { "type": "string", "enum": ["CRC32", "MD5", "SHA-1", "SHA-256"] },
+    "hashType": { "type": "string", "enum": ["CRC32", "MD5", "SHA_1", "SHA_256"] },
     "sfvFilePath": { "type": "string" }
   },
   "required": ["filePaths", "hashType"]
@@ -94,7 +101,7 @@ public record ChecksumProgressEventDto(
   "type": "object",
   "properties": {
     "entries": { "type": "array" },
-    "hashType": { "type": "string" },
+    "hashType": { "type": "string", "enum": ["CRC32", "MD5", "SHA_1", "SHA_256"] },
     "outputPath": { "type": "string" }
   },
   "required": ["entries", "hashType", "outputPath"]
@@ -114,7 +121,7 @@ public record ChecksumProgressEventDto(
 ```
 SfvPanel
 ├── SfvToolbar
-│   ├── HashAlgorithmSelector (CRC32, MD5, SHA-1, SHA-256)
+│   ├── HashAlgorithmSelector (CRC32, MD5, SHA_1, SHA_256)
 │   ├── LoadSfvFileButton
 │   ├── StartVerificationButton
 │   └── ExportSfvButton
@@ -130,9 +137,11 @@ SfvPanel
 ### Props & State Types (TypeScript)
 
 ```typescript
+import { HashType, ChecksumEntry } from './types';
+
 export interface SfvPanelState {
   fileEntries: ChecksumEntry[];
-  hashAlgorithm: 'CRC32' | 'MD5' | 'SHA-1' | 'SHA-256';
+  hashAlgorithm: HashType;
   isProcessing: boolean;
   activeTaskId: string | null;
   speedMBps: number;

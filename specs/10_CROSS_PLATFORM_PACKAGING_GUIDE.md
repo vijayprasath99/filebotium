@@ -4,9 +4,21 @@
 
 To package the decoupled Spring Boot 3 backend and React 18 frontend into a native, standalone desktop application across **Windows**, **macOS**, and **Linux**, three desktop runtime packaging architectures are supported:
 
-1. **Tauri (Rust wrapper):** Lightweight (~15MB installer size), high performance, native OS webview engine (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux).
-2. **Electron (Node.js + Chromium wrapper):** Enterprise standard, uniform rendering engine across all OS targets.
-3. **jpackage + Embedded Web Server (Native Java bundle):** Pure Java packaging option producing native platform installers (`.msi`, `.dmg`, `.deb`/`.rpm`) bundling a lightweight JRE runtime alongside the Spring Boot executable.
+```java
+package net.filebot.backend.domain;
+
+public enum PackagingTarget {
+    TAURI, ELECTRON, JPACKAGE
+}
+
+public enum OperatingSystem {
+    WINDOWS, MACOS, LINUX
+}
+```
+
+1. **Tauri (`PackagingTarget.TAURI`):** Lightweight (~15MB installer size), high performance, native OS webview engine (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux).
+2. **Electron (`PackagingTarget.ELECTRON`):** Enterprise standard, uniform rendering engine across all OS targets.
+3. **jpackage + Embedded Web Server (`PackagingTarget.JPACKAGE`):** Pure Java packaging option producing native platform installers (`.msi`, `.dmg`, `.deb`/`.rpm`) bundling a lightweight JRE runtime alongside the Spring Boot executable.
 
 ---
 
@@ -138,14 +150,14 @@ tasks.register('createNativeAppImage', Exec) {
 
 ## 3. Platform-Specific Native Integration
 
-1. **Windows:**
+1. **Windows (`OperatingSystem.WINDOWS`):**
    - Bundled with installer (`.msi` / `.exe` via InnoSetup or WiX Toolset).
    - Windows drag-and-drop file paths normalized to standard backslash paths.
-2. **macOS:**
+2. **macOS (`OperatingSystem.MACOS`):**
    - Universal Binary (Apple Silicon `arm64` and Intel `x86_64`).
    - App bundle signed with Apple Developer ID certificate and notarized via `xcrun notarytool`.
    - Native macOS Menu Bar integration.
-3. **Linux:**
+3. **Linux (`OperatingSystem.LINUX`):**
    - Packaging formats: `.deb`, `.rpm`, `.AppImage`, and `Flatpak`.
    - Desktop entry file (`filebot.desktop`) registered for MIME type handling.
 

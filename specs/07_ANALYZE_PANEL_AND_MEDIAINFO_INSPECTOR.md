@@ -54,6 +54,14 @@ public interface MediaInfoInspectorService {
     List<MediaInfoInspectorDto> batchInspect(List<String> filePaths);
 }
 
+public enum AnalysisTool {
+    MEDIAINFO, XATTR, TYPES, EXTRACT, SPLIT
+}
+
+public enum StreamType {
+    GENERAL, VIDEO, AUDIO, SUBTITLE
+}
+
 public record MediaInfoInspectorDto(
     String filePath,
     String containerFormat,
@@ -127,11 +135,14 @@ AnalyzePanel
 ### Props & State Types (TypeScript)
 
 ```typescript
+export type AnalysisTool = 'MEDIAINFO' | 'XATTR' | 'TYPES' | 'EXTRACT' | 'SPLIT';
+export type StreamType = 'GENERAL' | 'VIDEO' | 'AUDIO' | 'SUBTITLE';
+
 export interface AnalyzePanelState {
   treeRoot: FileTreeNode;
   selectedFilePath: string | null;
   inspectionData: MediaInfoInspector | null;
-  activeTool: 'MEDIAINFO' | 'XATTR' | 'TYPES' | 'EXTRACT';
+  activeTool: AnalysisTool;
   isLoading: boolean;
 }
 ```

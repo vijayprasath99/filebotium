@@ -56,28 +56,38 @@ public static long computeHash(File file) throws IOException {
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.SubtitleFormat;
+import net.filebot.backend.domain.SubtitleProviderType;
 import net.filebot.backend.dto.SubtitleDescriptorDto;
 import net.filebot.backend.dto.SubtitleDownloadResultDto;
 import java.util.List;
 
 public interface SubtitleService {
     String computeOpenSubtitlesHash(String filePath);
-    List<SubtitleDescriptorDto> searchSubtitles(List<String> filePaths, String language, String provider);
+    List<SubtitleDescriptorDto> searchSubtitles(SubtitleSearchRequestDto request);
     SubtitleDownloadResultDto downloadSubtitles(List<SubtitleDownloadRequestDto> requests);
-    void uploadSubtitle(String videoPath, String subtitlePath, String language, String imdbId);
+    void uploadSubtitle(SubtitleUploadRequestDto request);
 }
 
 public record SubtitleSearchRequestDto(
     List<String> videoFilePaths,
-    String language, // 2-letter or 3-letter ISO code
-    String provider  // OpenSubtitles, Shooter
+    LanguageCode language,
+    SubtitleProviderType provider
 ) {}
 
 public record SubtitleDownloadRequestDto(
     String videoFilePath,
     String subtitleId,
-    String provider,
-    String targetFormat // srt, sub, ass
+    SubtitleProviderType provider,
+    SubtitleFormat targetFormat
+) {}
+
+public record SubtitleUploadRequestDto(
+    String videoFilePath,
+    String subtitleFilePath,
+    LanguageCode language,
+    String imdbId
 ) {}
 
 public record SubtitleDownloadResultDto(
@@ -99,8 +109,8 @@ public record SubtitleDownloadResultDto(
   "type": "object",
   "properties": {
     "videoFilePaths": { "type": "array", "items": { "type": "string" } },
-    "language": { "type": "string" },
-    "provider": { "type": "string", "enum": ["OpenSubtitles", "Shooter"] }
+    "language": { "type": "string", "enum": ["EN", "DE", "FR", "ES", "IT", "JA", "ZH", "KO", "RU"] },
+    "provider": { "type": "string", "enum": ["OPEN_SUBTITLES", "SHOOTER"] }
   },
   "required": ["videoFilePaths", "language", "provider"]
 }
@@ -120,7 +130,7 @@ public record SubtitleDownloadResultDto(
 ```
 SubtitlePanel
 ├── SubtitleToolbar
-│   ├── ProviderSelector (OpenSubtitles, Shooter)
+│   ├── ProviderSelector (OPEN_SUBTITLES, SHOOTER)
 │   ├── LanguageFilterDropdown
 │   ├── AutoMatchButton
 │   └── UploadSubtitleButton
@@ -134,11 +144,13 @@ SubtitlePanel
 ### Props & State Types (TypeScript)
 
 ```typescript
+import { SubtitleProviderType, LanguageCode, SubtitleDescriptor } from './types';
+
 export interface SubtitlePanelState {
   videoFiles: MediaFile[];
   searchResults: Record<string, SubtitleDescriptor[]>;
-  selectedLanguage: string;
-  selectedProvider: 'OpenSubtitles' | 'Shooter';
+  selectedLanguage: LanguageCode;
+  selectedProvider: SubtitleProviderType;
   isSearching: boolean;
   isDownloading: boolean;
 }

@@ -43,8 +43,7 @@ import java.util.List;
 public interface HistoryService {
     List<HistoryTransactionDto> getTransactionHistory();
     HistoryTransactionDto getTransactionById(String transactionId);
-    RollbackResultDto rollbackTransaction(String transactionId);
-    RollbackResultDto rollbackElement(String transactionId, String sourcePath, String targetPath);
+    RollbackResultDto rollbackTransaction(RollbackRequestDto request);
     void clearHistory();
     void exportHistory(String format, String outputPath);
 }
@@ -117,6 +116,8 @@ HistoryPanel
 ### Props & State Types (TypeScript)
 
 ```typescript
+import { HistoryTransaction } from './types';
+
 export interface HistoryPanelState {
   transactions: HistoryTransaction[];
   selectedTransactionId: string | null;

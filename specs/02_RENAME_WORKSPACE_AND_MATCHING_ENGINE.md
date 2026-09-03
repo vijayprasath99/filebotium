@@ -49,29 +49,33 @@
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.domain.ConflictStrategy;
+import net.filebot.backend.domain.FileAction;
+import net.filebot.backend.domain.LanguageCode;
+import net.filebot.backend.domain.MatchingMode;
+import net.filebot.backend.domain.ProviderType;
 import net.filebot.backend.dto.MatchDto;
-import net.filebot.backend.dto.MediaFileDto;
 import java.util.List;
 
 public interface RenameWorkspaceService {
-    List<MatchDto> autoMatch(List<String> filePaths, String databaseProvider, String mode, String language, String formatExpression);
+    List<MatchDto> autoMatch(MatchRequestDto request);
     List<MatchDto> updateRowAlignment(List<MatchDto> currentMatches, int sourceIndex, int targetIndex);
     List<MatchDto> applyFormat(List<MatchDto> matches, String formatExpression);
-    RenameExecutionResultDto executeRename(List<MatchDto> matches, String action, String conflictStrategy);
+    RenameExecutionResultDto executeRename(RenameExecutionRequestDto request);
 }
 
 public record MatchRequestDto(
     List<String> filePaths,
-    String provider,        // TheTVDB, TMDb, AniDB, TVMaze, OMDb
-    String mode,            // TV, MOVIE, MUSIC, AUTO
-    String language,        // en, de, fr, es, etc.
-    String formatExpression // e.g. "{n} - {s00e00} - {t}"
+    ProviderType provider,
+    MatchingMode mode,
+    LanguageCode language,
+    String formatExpression
 ) {}
 
 public record RenameExecutionRequestDto(
     List<MatchDto> matches,
-    String action,          // MOVE, COPY, HARDLINK, SYMLINK
-    String conflictStrategy // OVERWRITE, FAIL, SKIP, AUTO_RENAME
+    FileAction action,
+    ConflictStrategy conflictStrategy
 ) {}
 
 public record RenameExecutionResultDto(
@@ -100,9 +104,9 @@ public record RenameErrorDto(
   "type": "object",
   "properties": {
     "filePaths": { "type": "array", "items": { "type": "string" } },
-    "provider": { "type": "string" },
-    "mode": { "type": "string", "enum": ["TV", "MOVIE", "MUSIC", "AUTO"] },
-    "language": { "type": "string" },
+    "provider": { "type": "string", "enum": ["THE_TVDB", "THE_MOVIE_DB", "ANI_DB", "TV_MAZE", "OMDB"] },
+    "mode": { "type": "string", "enum": ["TV", "MOVIE", "MUSIC", "ANIME", "AUTO"] },
+    "language": { "type": "string", "enum": ["EN", "DE", "FR", "ES", "IT", "JA", "ZH", "KO", "RU"] },
     "formatExpression": { "type": "string" }
   },
   "required": ["filePaths", "provider", "mode"]
@@ -122,7 +126,7 @@ public record RenameErrorDto(
     "action": { "type": "string", "enum": ["MOVE", "COPY", "HARDLINK", "SYMLINK"] },
     "conflictStrategy": { "type": "string", "enum": ["OVERWRITE", "FAIL", "SKIP", "AUTO_RENAME"] }
   },
-  "required": ["matches", "action"]
+  "required": ["matches", "action", "conflictStrategy"]
 }
 ```
 
@@ -150,7 +154,7 @@ public record RenameErrorDto(
 RenameWorkspace
 ├── RenameToolbar
 │   ├── MatchProviderSelector
-│   ├── ModeSelector (TV / Movie / Music)
+│   ├── ModeSelector (TV / Movie / Music / Anime)
 │   ├── FormatExpressionInput & EditorTrigger
 │   ├── ActionTypeSelector (Move / Copy / Hardlink / Symlink)
 │   └── ExecuteRenameButton
@@ -164,12 +168,14 @@ RenameWorkspace
 ### Props & State Types (TypeScript)
 
 ```typescript
+import { ProviderType, MatchingMode, FileAction, Match } from './types';
+
 export interface RenameWorkspaceState {
   sourceFiles: MediaFile[];
   matches: Match[];
-  selectedProvider: string;
-  mode: 'TV' | 'MOVIE' | 'MUSIC' | 'AUTO';
-  action: 'MOVE' | 'COPY' | 'HARDLINK' | 'SYMLINK';
+  selectedProvider: ProviderType;
+  mode: MatchingMode;
+  action: FileAction;
   formatExpression: string;
   isMatching: boolean;
   isExecuting: boolean;

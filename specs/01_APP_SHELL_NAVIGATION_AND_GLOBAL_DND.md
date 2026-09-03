@@ -40,14 +40,15 @@
 ```java
 package net.filebot.backend.service;
 
+import net.filebot.backend.domain.NotificationLevel;
+import net.filebot.backend.domain.WorkspaceTab;
 import net.filebot.backend.dto.MediaFileDto;
 import net.filebot.backend.dto.SystemStatusDto;
-import java.io.File;
 import java.util.List;
 
 public interface AppShellService {
     SystemStatusDto getSystemStatus();
-    List<MediaFileDto> processFileIntake(List<String> filePaths, boolean recursive, boolean filterHidden);
+    List<MediaFileDto> processFileIntake(IntakeRequestDto request);
     void handleClipboardContent(String textContent);
 }
 
@@ -55,7 +56,7 @@ public record IntakeRequestDto(
     List<String> paths,
     boolean recursive,
     boolean filterHidden,
-    String targetWorkspace
+    WorkspaceTab targetWorkspace
 ) {}
 
 public record SystemStatusDto(
@@ -66,6 +67,14 @@ public record SystemStatusDto(
     String osArch,
     long freeMemoryBytes,
     long totalMemoryBytes
+) {}
+
+public record AppNotificationDto(
+    String id,
+    NotificationLevel level,
+    String title,
+    String message,
+    String timestamp
 ) {}
 ```
 
@@ -127,7 +136,7 @@ public record SystemStatusDto(
 ```json
 {
   "id": "uuid-string",
-  "level": "INFO | WARNING | ERROR",
+  "level": "INFO | WARNING | ERROR | SUCCESS",
   "title": "Title String",
   "message": "Detailed message text",
   "timestamp": "ISO-8601 string"
@@ -156,7 +165,7 @@ AppShell
 ### Props & State Types (TypeScript)
 
 ```typescript
-export type WorkspaceTab = 'RENAME' | 'EPISODES' | 'SUBTITLES' | 'SFV' | 'ANALYZE' | 'LIST';
+import { WorkspaceTab, NotificationLevel } from './types';
 
 export interface AppShellState {
   activeTab: WorkspaceTab;
@@ -167,7 +176,7 @@ export interface AppShellState {
 
 export interface AppNotification {
   id: string;
-  level: 'INFO' | 'WARNING' | 'ERROR';
+  level: NotificationLevel;
   title: string;
   message: string;
   timestamp: string;
