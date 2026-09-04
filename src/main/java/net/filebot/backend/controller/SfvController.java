@@ -5,7 +5,15 @@ import net.filebot.backend.dto.ChecksumEntryDto;
 import net.filebot.backend.dto.ChecksumExportRequestDto;
 import net.filebot.backend.dto.ChecksumVerificationRequestDto;
 import net.filebot.backend.service.ChecksumService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
+@RestController
+@RequestMapping("/api/v1/sfv")
 public class SfvController {
 
   private final ChecksumService checksumService;
@@ -14,19 +22,24 @@ public class SfvController {
     this.checksumService = checksumService;
   }
 
-  public String startVerificationTask(ChecksumVerificationRequestDto request) {
+  @PostMapping("/verify")
+  public String startVerificationTask(@RequestBody ChecksumVerificationRequestDto request) {
     return checksumService.startVerificationTask(request);
   }
 
-  public void cancelVerificationTask(String taskId) {
+  @PostMapping("/cancel")
+  public void cancelVerificationTask(@RequestParam("taskId") String taskId) {
     checksumService.cancelVerificationTask(taskId);
   }
 
-  public List<ChecksumEntryDto> parseVerificationFile(String sfvFilePath) {
+  @GetMapping("/parse")
+  public List<ChecksumEntryDto> parseVerificationFile(
+      @RequestParam("sfvFilePath") String sfvFilePath) {
     return checksumService.parseVerificationFile(sfvFilePath);
   }
 
-  public String exportVerificationFile(ChecksumExportRequestDto request) {
+  @PostMapping("/export")
+  public String exportVerificationFile(@RequestBody ChecksumExportRequestDto request) {
     return checksumService.generateVerificationFileContent(request);
   }
 }

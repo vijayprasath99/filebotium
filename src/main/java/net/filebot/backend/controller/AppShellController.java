@@ -9,9 +9,17 @@ import java.util.UUID;
 import net.filebot.backend.dto.IntakeRequestDto;
 import net.filebot.backend.dto.MediaFileDto;
 import net.filebot.backend.dto.SystemStatusDto;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
+@RestController
+@RequestMapping("/api/v1/app")
 public class AppShellController {
 
+  @GetMapping("/status")
   public SystemStatusDto getSystemStatus() {
     Runtime runtime = Runtime.getRuntime();
     return new SystemStatusDto(
@@ -24,7 +32,8 @@ public class AppShellController {
         runtime.totalMemory());
   }
 
-  public List<MediaFileDto> processFileIntake(IntakeRequestDto request) {
+  @PostMapping("/intake")
+  public List<MediaFileDto> processFileIntake(@RequestBody IntakeRequestDto request) {
     if (request == null || request.paths() == null) {
       return Collections.emptyList();
     }
