@@ -121,6 +121,8 @@ module net.filebot {
   exports net.filebot.media;
   exports net.filebot.mediainfo;
   exports net.filebot.backend.service;
+  exports net.filebot.backend.controller;
+  exports net.filebot.backend.websocket;
   exports net.filebot.platform.mac;
   exports net.filebot.platform.windows;
   exports net.filebot.platform.gnome;
