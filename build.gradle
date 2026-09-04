@@ -170,7 +170,9 @@ dependencies {
   implementation 'org.springframework.boot:spring-boot-starter-web:3.3.5'
   implementation 'org.springframework.boot:spring-boot-starter-websocket:3.3.5'
   implementation 'org.springframework.boot:spring-boot-starter-validation:3.3.5'
-  testImplementation 'org.springframework.boot:spring-boot-starter-test:3.3.5'
+  testImplementation('org.springframework.boot:spring-boot-starter-test:3.3.5') {
+    exclude group: 'com.vaadin.external.google', module: 'android-json'
+  }
 
   // Testing
   testImplementation "org.junit.jupiter:junit-jupiter-api:${junitVersion}"

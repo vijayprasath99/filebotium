@@ -1,231 +1,151 @@
 # Contributing to FileBot
 
-Thank you for your interest in contributing to FileBot! This guide will help you get started with development and building the project.
+Thank you for your interest in contributing to FileBot! This document provides instructions for setting up your local environment, running, testing, and building both the Spring Boot 3 backend and the React 18 frontend.
+
+---
 
 ## Prerequisites
 
-### Required Software
+Before getting started, ensure you have the following installed:
 
-- **JDK 21**: FileBot requires Java Development Kit (JDK) 21 for compilation and native packaging
-  - Download from [Adoptium (Eclipse Temurin)](https://adoptium.net/temurin/releases/?version=21)
-  - **Important**: You need a full JDK installation, not just a JRE, to build native installers
-- **Git**: For version control
-- **Gradle**: Bundled via Gradle Wrapper (`./gradlew`)
+- **Java Development Kit (JDK) 21**: Required for building and running the backend.
+- **Node.js (v18 or higher) & npm**: Required for running and building the React 18 SPA frontend.
+- **Git**: For version control.
 
-### Platform-Specific Requirements for Native Packaging
+---
 
-#### Linux
-For creating native Linux packages (`.deb`, `.rpm`), you need:
-```bash
-sudo apt-get update
-sudo apt-get install -y fakeroot binutils rpm
+## Project Structure Overview
+
+```
+filebotium/
+├── src/
+│   ├── main/java/net/filebot/          # Legacy Swing & Domain logic
+│   │   ├── backend/                    # Spring Boot 3 Backend
+│   │   │   ├── domain/                 # Domain Enums
+│   │   │   ├── dto/                    # Java 17 DTO Records
+│   │   │   ├── service/                # Headless @Service Wrappers
+│   │   │   ├── controller/             # REST Controllers
+│   │   │   └── websocket/              # STOMP WebSocket Config & Publisher
+│   ├── test/java/net/filebot/backend/  # Integration & Unit tests
+├── frontend/                           # React 18 + TypeScript + Tailwind SPA
+├── desktop-wrapper/                    # Electron & Tauri desktop configurations
+├── specs/                              # Architecture & Feature specifications
+└── build.gradle                        # Gradle build configuration
 ```
 
-#### macOS
-For creating macOS installers (`.dmg`, `.pkg`), you need:
-- Xcode Command Line Tools: `xcode-select --install`
-- Valid Apple Developer ID (for code signing, optional for local builds)
+---
 
-#### Windows
-For creating Windows installers (`.msi`, `.exe`), you need:
-- [WiX Toolset](https://wixtoolset.org/) version 3.11+ (for MSI installers)
-- [Inno Setup](https://jrsoftware.org/isinfo.php) (optional, for EXE installers)
+## Local Development Setup
 
-## Development Setup
+### 1. Spring Boot Backend Setup
 
-### 1. Clone the Repository
+The backend runs on **Java 21** using Spring Boot 3 and Gradle.
 
+#### Running the Backend
+To start the Spring Boot application locally:
 ```bash
-git clone https://github.com/YOUR_USERNAME/filebot.git
-cd filebot
+./gradlew bootRun
 ```
-
-### 2. Build the Project
-
+*Alternatively, you can run:*
 ```bash
-./gradlew build
+./gradlew run
 ```
+The REST API server will be available at `http://localhost:8080/api`.
 
-### 3. Run Tests
-
+#### Running Tests
+To run unit and integration tests:
 ```bash
 ./gradlew test
 ```
 
-### 4. Run the Application
-
-#### As a JAR
+#### Code Formatting & Style
+Code formatting is enforced using Spotless and Google Java Format.
 ```bash
-./gradlew jar
-cd build/libs
-java -jar filebot-1.0-SNAPSHOT.jar
-```
-
-#### Using Gradle Application Plugin
-```bash
-./gradlew run
-```
-
-#### In IntelliJ IDEA
-1. Import the project as a Gradle project
-2. Configure the JDK to version 21 in Project Settings
-3. Run the `Main` class directly
-
-## Building Native Installers
-
-FileBot uses `jpackage` (bundled with JDK 21) to create native installers for each platform. The build is configured using the [Badass JLink Plugin](https://badass-jlink-plugin.beryx.org/).
-
-### Prerequisites for jpackage
-
-**Critical**: `jpackage` requires a full JDK 21 installation. A JRE is not sufficient.
-
-Verify your JDK installation:
-```bash
-java -version  # Should show Java 21
-javac -version # Should show Java 21
-jpackage --version # Should show version 21.x
-```
-
-### Build Commands
-
-#### Create Application Image (All Platforms)
-
-This creates a self-contained application directory with all dependencies:
-
-```bash
-./gradlew jpackageImage
-```
-
-The output will be in `build/jpackage/filebot/` (or `FileBot.app` on macOS).
-
-#### Create Native Installers
-
-##### Linux
-```bash
-# Debian package (.deb)
-./gradlew jpackage -PinstallerType=deb
-
-# RPM package (.rpm)
-./gradlew jpackage -PinstallerType=rpm
-```
-
-##### macOS
-```bash
-# DMG image (.dmg)
-./gradlew jpackage -PinstallerType=dmg
-
-# PKG installer (.pkg)
-./gradlew jpackage -PinstallerType=pkg
-```
-
-##### Windows
-```bash
-# MSI installer (.msi)
-gradlew.bat jpackage -PinstallerType=msi
-
-# EXE installer (.exe) - requires Inno Setup
-gradlew.bat jpackage -PinstallerType=exe
-```
-
-#### Build All Formats
-
-To build the app image only (recommended for testing):
-```bash
-./gradlew jpackageImage
-```
-
-### Output Location
-
-Built installers and images will be located in:
-```
-build/jpackage/
-├── filebot/              # App image (Linux/Windows)
-├── FileBot.app/          # App image (macOS)
-├── filebot-1.0.deb      # Debian package
-├── filebot-1.0.rpm      # RPM package
-├── FileBot-1.0.dmg      # macOS disk image
-├── FileBot-1.0.pkg      # macOS installer package
-├── FileBot-1.0.msi      # Windows MSI installer
-└── FileBot-1.0.exe      # Windows EXE installer
-```
-
-## Code Style
-
-This project uses [Spotless](https://github.com/diffplug/spotless) with Google Java Format for code formatting.
-
-### Check Code Formatting
-```bash
+# Check code formatting compliance
 ./gradlew spotlessCheck
-```
 
-### Apply Code Formatting
-```bash
+# Automatically format Java code
 ./gradlew spotlessApply
 ```
 
-**Tip**: Set up your IDE to automatically format code on save using Google Java Format.
+---
 
-## Continuous Integration
+## 2. React 18 Frontend Setup
 
-The project uses GitHub Actions to automatically build native installers for all platforms (Linux, Windows, macOS) on every push.
+The frontend is located in the `frontend/` directory and built with **Vite, React 18, TypeScript, and Tailwind CSS**.
 
-You can find the workflow configuration in `.github/workflows/build-installers.yml`.
-
-To download pre-built installers:
-1. Go to the [Actions tab](https://github.com/YOUR_USERNAME/filebot/actions)
-2. Click on a successful workflow run
-3. Download the artifacts for your platform
-
-## Common Issues
-
-### Gradle Daemon Issues
-
-If you encounter file locking or daemon issues, stop the Gradle daemon:
+#### Installation & Development Server
 ```bash
-./gradlew --stop
+# Navigate to the frontend directory
+cd frontend
+
+# Install Node modules
+npm install
+
+# Start the Vite development server with Hot Module Replacement (HMR)
+npm run dev
 ```
+The SPA will be accessible at `http://localhost:5173`. API requests are proxied or directed to `http://localhost:8080/api`.
 
-### jpackage Not Found
-
-Ensure you're using a full JDK 21 installation. Set `JAVA_HOME` explicitly if needed:
+#### Building the Frontend
+To build static assets for production:
 ```bash
-# Linux/macOS
-export JAVA_HOME=/path/to/jdk-21
-./gradlew jpackage
-
-# Windows
-set JAVA_HOME=C:\Path\To\jdk-21
-gradlew.bat jpackage
+npm run build
 ```
-
-### Missing Native Packaging Tools
-
-- **Linux**: Install `fakeroot`, `binutils`, and `rpm` as mentioned in Prerequisites
-- **Windows**: Install WiX Toolset and add it to your PATH
-- **macOS**: Install Xcode Command Line Tools
-
-### Module Path Issues
-
-If you encounter module path errors, ensure:
-1. You're using Java 21
-2. The `module-info.java` is properly configured
-3. All dependencies are modular or have automatic module names
-
-## Submitting Changes
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make your changes and commit: `git commit -am 'Add new feature'`
-4. Apply code formatting: `./gradlew spotlessApply`
-5. Run tests: `./gradlew test`
-6. Push to your fork: `git push origin feature/my-feature`
-7. Create a Pull Request
-
-## Questions?
-
-If you have any questions or need help, please open an issue on GitHub.
+Output files will be generated in `frontend/dist/`.
 
 ---
 
-Thank you for contributing to FileBot! 🎉
+## 3. Desktop Wrapper (Electron & Tauri) Setup
 
+Desktop packaging configurations reside in `desktop-wrapper/`.
+
+#### Electron Setup
+```bash
+cd desktop-wrapper
+npm install
+npm run start
+```
+
+#### Tauri Setup
+Ensure you have the Rust toolchain installed, then:
+```bash
+cd desktop-wrapper
+cargo tauri dev
+```
+
+---
+
+## 4. Building Production Packages
+
+### Building JAR
+```bash
+./gradlew jar
+```
+The compiled output will be located in `build/libs/filebot-1.0-SNAPSHOT.jar`.
+
+### Building Native Installers (jpackage)
+```bash
+# Create cross-platform app image
+./gradlew jpackageImage
+
+# Create platform-specific installer:
+# Linux (.deb):
+./gradlew jpackage -PinstallerType=deb
+
+# macOS (.dmg):
+./gradlew jpackage -PinstallerType=dmg
+
+# Windows (.msi):
+gradlew.bat jpackage -PinstallerType=msi
+```
+
+---
+
+## Contribution Workflow
+
+1. **Fork & Branch**: Create a feature branch off `main` (e.g., `feat/my-feature` or `fix/my-bug`).
+2. **Write Code & Tests**: Ensure all new services or endpoints have corresponding unit or integration tests under `src/test/java/net/filebot/backend/`.
+3. **Format Code**: Run `./gradlew spotlessApply` prior to committing.
+4. **Run Verification**: Ensure `./gradlew spotlessCheck` and `./gradlew test` pass cleanly with 0 errors.
+5. **Submit Pull Request**: Push your branch and open a PR with a concise description of your changes.
