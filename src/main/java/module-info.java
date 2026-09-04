@@ -112,6 +112,18 @@ module net.filebot {
   // GlazedLists
   requires glazedlists;
 
+  // Spring Framework & Spring Boot Modules
+  requires spring.boot;
+  requires spring.boot.autoconfigure;
+  requires spring.context;
+  requires spring.web;
+  requires spring.messaging;
+  requires spring.websocket;
+  requires org.apache.tomcat.embed.core;
+  requires org.apache.tomcat.embed.websocket;
+  requires com.fasterxml.jackson.databind;
+  requires com.fasterxml.jackson.datatype.jsr310;
+
   // Export main packages that may be accessed externally
   exports net.filebot;
   exports net.filebot.archive;
@@ -120,6 +132,12 @@ module net.filebot {
   exports net.filebot.hash;
   exports net.filebot.media;
   exports net.filebot.mediainfo;
+  exports net.filebot.backend;
+  exports net.filebot.backend.domain;
+  exports net.filebot.backend.dto;
+  exports net.filebot.backend.service;
+  exports net.filebot.backend.controller;
+  exports net.filebot.backend.websocket;
   exports net.filebot.platform.mac;
   exports net.filebot.platform.windows;
   exports net.filebot.platform.gnome;
@@ -176,4 +194,31 @@ module net.filebot {
       json.io;
   opens net.filebot.media to
       json.io;
+
+  // Open backend packages for Spring Framework reflection
+  opens net.filebot.backend to
+      spring.core,
+      spring.beans,
+      spring.context;
+  opens net.filebot.backend.controller to
+      spring.core,
+      spring.beans,
+      spring.context,
+      spring.web;
+  opens net.filebot.backend.service to
+      spring.core,
+      spring.beans,
+      spring.context;
+  opens net.filebot.backend.websocket to
+      spring.core,
+      spring.beans,
+      spring.context,
+      spring.messaging,
+      spring.websocket;
+  opens net.filebot.backend.dto to
+      com.fasterxml.jackson.databind,
+      spring.core;
+  opens net.filebot.backend.domain to
+      com.fasterxml.jackson.databind,
+      spring.core;
 }
