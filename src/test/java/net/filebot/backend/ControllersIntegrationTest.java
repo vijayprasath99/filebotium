@@ -31,7 +31,6 @@ import net.filebot.backend.dto.MatchRequestDto;
 import net.filebot.backend.dto.MediaFileDto;
 import net.filebot.backend.dto.MediaInfoInspectorDto;
 import net.filebot.backend.dto.SearchResultDto;
-import net.filebot.backend.dto.SeriesSearchRequestDto;
 import net.filebot.backend.dto.SubtitleDescriptorDto;
 import net.filebot.backend.dto.SubtitleSearchRequestDto;
 import net.filebot.backend.dto.SystemStatusDto;
@@ -114,9 +113,8 @@ public class ControllersIntegrationTest {
 
   @Test
   public void testEpisodeController() {
-    SeriesSearchRequestDto searchReq =
-        new SeriesSearchRequestDto("Office", ProviderType.THE_TVDB, LanguageCode.EN);
-    List<SearchResultDto> results = episodeController.searchSeries(searchReq);
+    List<SearchResultDto> results =
+        episodeController.searchSeries("Office", ProviderType.THE_TVDB, LanguageCode.EN);
     assertNotNull(results);
   }
 
