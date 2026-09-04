@@ -18,7 +18,9 @@ import net.filebot.backend.dto.RenameExecutionResultDto;
 import net.filebot.format.ExpressionFormat;
 import net.filebot.format.MediaBindingBean;
 import net.filebot.similarity.SeasonEpisodeMatcher;
+import org.springframework.stereotype.Service;
 
+@Service
 public class RenameWorkspaceServiceImpl implements RenameWorkspaceService {
 
   private final SeasonEpisodeMatcher seasonEpisodeMatcher =

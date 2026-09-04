@@ -18,7 +18,9 @@ import net.filebot.backend.dto.HistoryTransactionDto;
 import net.filebot.backend.dto.RollbackErrorDto;
 import net.filebot.backend.dto.RollbackRequestDto;
 import net.filebot.backend.dto.RollbackResultDto;
+import org.springframework.stereotype.Service;
 
+@Service
 public class HistoryServiceImpl implements HistoryService {
 
   @Override

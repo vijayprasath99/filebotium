@@ -22,7 +22,9 @@ import net.filebot.web.TMDbClient;
 import net.filebot.web.TMDbTVClient;
 import net.filebot.web.TVMazeClient;
 import net.filebot.web.TheTVDBClient;
+import org.springframework.stereotype.Service;
 
+@Service
 public class EpisodeFetcherServiceImpl implements EpisodeFetcherService {
 
   @Override

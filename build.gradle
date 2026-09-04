@@ -47,6 +47,10 @@ javafx {
   modules = [ 'javafx.controls', 'javafx.fxml', 'javafx.web', 'javafx.swing' ]
 }
 
+configurations.all {
+  exclude group: 'commons-logging', module: 'commons-logging'
+}
+
 dependencies {
   // Args4j for command-line argument parsing
   implementation 'args4j:args4j:2.37'

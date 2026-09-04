@@ -16,7 +16,9 @@ import net.filebot.backend.dto.ChecksumExportRequestDto;
 import net.filebot.backend.dto.ChecksumVerificationRequestDto;
 import net.filebot.hash.SfvFormat;
 import net.filebot.hash.VerificationFileReader;
+import org.springframework.stereotype.Service;
 
+@Service
 public class ChecksumServiceImpl implements ChecksumService {
 
   @Override

@@ -6,7 +6,9 @@ import net.filebot.backend.domain.FileAction;
 import net.filebot.backend.domain.LanguageCode;
 import net.filebot.backend.dto.AppSettingsDto;
 import net.filebot.backend.dto.ProviderCredentialDto;
+import org.springframework.stereotype.Service;
 
+@Service
 public class SettingsServiceImpl implements SettingsService {
 
   private final Preferences prefs = Preferences.userNodeForPackage(Settings.class);

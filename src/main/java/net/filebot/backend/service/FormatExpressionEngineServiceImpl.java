@@ -8,7 +8,9 @@ import net.filebot.backend.dto.BindingDocumentationDto;
 import net.filebot.backend.dto.FormatEvaluationResultDto;
 import net.filebot.format.ExpressionFormat;
 import net.filebot.format.MediaBindingBean;
+import org.springframework.stereotype.Service;
 
+@Service
 public class FormatExpressionEngineServiceImpl implements FormatExpressionEngineService {
 
   @Override

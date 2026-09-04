@@ -13,7 +13,9 @@ import net.filebot.backend.dto.SubtitleDownloadResultDto;
 import net.filebot.backend.dto.SubtitleSearchRequestDto;
 import net.filebot.backend.dto.SubtitleUploadRequestDto;
 import net.filebot.web.OpenSubtitlesHasher;
+import org.springframework.stereotype.Service;
 
+@Service
 public class SubtitleServiceImpl implements SubtitleService {
 
   @Override

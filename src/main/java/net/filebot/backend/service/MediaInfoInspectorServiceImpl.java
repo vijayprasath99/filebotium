@@ -10,7 +10,9 @@ import net.filebot.backend.dto.SubtitleStreamDto;
 import net.filebot.backend.dto.VideoStreamDto;
 import net.filebot.mediainfo.MediaInfo;
 import net.filebot.mediainfo.MediaInfo.StreamKind;
+import org.springframework.stereotype.Service;
 
+@Service
 public class MediaInfoInspectorServiceImpl implements MediaInfoInspectorService {
 
   @Override
