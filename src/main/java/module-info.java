@@ -119,6 +119,10 @@ module net.filebot {
   requires spring.web;
   requires spring.messaging;
   requires spring.websocket;
+  requires org.apache.tomcat.embed.core;
+  requires org.apache.tomcat.embed.websocket;
+  requires com.fasterxml.jackson.databind;
+  requires com.fasterxml.jackson.datatype.jsr310;
 
   // Export main packages that may be accessed externally
   exports net.filebot;
@@ -211,4 +215,10 @@ module net.filebot {
       spring.context,
       spring.messaging,
       spring.websocket;
+  opens net.filebot.backend.dto to
+      com.fasterxml.jackson.databind,
+      spring.core;
+  opens net.filebot.backend.domain to
+      com.fasterxml.jackson.databind,
+      spring.core;
 }

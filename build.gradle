@@ -39,7 +39,13 @@ tasks.withType(JavaCompile) {
 
 application {
   mainModule = 'net.filebot'
-  mainClass = 'net.filebot.Main'
+  mainClass = 'net.filebot.backend.FileBotBackendApplication'
+}
+
+tasks.register('bootRun') {
+  group = 'application'
+  description = 'Runs the Spring Boot backend application'
+  dependsOn 'run'
 }
 
 javafx {
@@ -106,9 +112,6 @@ dependencies {
 
   // JSON processing - Using older version due to module compatibility
   implementation 'com.cedarsoftware:json-io:4.14.1'
-
-  // Logging
-  implementation 'org.slf4j:slf4j-jdk14:2.0.16'
 
   // GlazedLists
   implementation 'com.glazedlists:glazedlists:1.11.0'

@@ -67,6 +67,13 @@ export interface MediaFile {
   xattrs: Record<string, string>;
 }
 
+export interface SearchResult {
+  id: number;
+  name: string;
+  year: number | null;
+  provider: ProviderType;
+}
+
 export interface Episode {
   provider: ProviderType;
   seriesName: string;
