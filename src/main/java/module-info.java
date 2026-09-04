@@ -120,6 +120,8 @@ module net.filebot {
   exports net.filebot.hash;
   exports net.filebot.media;
   exports net.filebot.mediainfo;
+  exports net.filebot.backend.domain;
+  exports net.filebot.backend.dto;
   exports net.filebot.backend.service;
   exports net.filebot.backend.controller;
   exports net.filebot.backend.websocket;
