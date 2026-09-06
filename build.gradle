@@ -3,7 +3,6 @@ plugins {
   id 'application'
   id 'org.javamodularity.moduleplugin' version '2.0.0'
   id 'org.openjfx.javafxplugin' version '0.1.0'
-  id 'org.beryx.jlink' version '3.1.1'
   id 'edu.sc.seis.launch4j' version '3.0.6'
   id 'com.diffplug.spotless' version '8.1.0'
 }
@@ -184,71 +183,13 @@ dependencies {
   testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
 }
 
-jlink {
-  options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages', '--ignore-signing-information']
-  addExtraDependencies('javafx')
-  addExtraDependencies('commons-io', 'commons-net')
-  
-  launcher {
-    name = 'filebot'
-    jvmArgs = [
-      '-Xmx2g',
-      '-XX:+UseG1GC',
-      '-XX:+UseStringDeduplication'
-    ]
-  }
-  
-  jpackage {
-    // Application metadata
-    appVersion = project.version.toString().replace('-SNAPSHOT', '')
-    
-    // Installer options - will be customized per platform in CI
-    installerType = project.findProperty('installerType') ?: 'app-image'
-    
-    // Application icon - using the highest resolution PNG available
-    // Note: For production, you should convert these to platform-specific formats:
-    // - macOS: .icns (can be created from PNG using iconutil)
-    // - Windows: .ico (can be created from PNG using ImageMagick)
-    // - Linux: .png is native
-    def iconFile = file("${projectDir}/src/main/resources/assets/icons/window.icon64@2x.png")
-    if (iconFile.exists()) {
-      icon = iconFile
-    }
-    
-    // JVM arguments for the packaged application
-    jvmArgs = [
-      '-Xmx2g',
-      '-XX:+UseG1GC',
-      '-XX:+UseStringDeduplication'
-    ]
-    
-    // Installer options
-    installerOptions = [
-      '--vendor', 'FileBot',
-      '--description', 'FileBot - The ultimate TV and Movie Renamer',
-      '--copyright', 'Copyright © 2025 FileBot'
-    ]
-    
-    // Platform-specific installer options
-    if (org.gradle.internal.os.OperatingSystem.current().isMacOsX()) {
-      installerOptions += [
-        '--mac-package-name', 'FileBot',
-        '--mac-package-identifier', 'net.filebot.FileBot'
-      ]
-    } else if (org.gradle.internal.os.OperatingSystem.current().isWindows()) {
-      installerOptions += [
-        '--win-dir-chooser',
-        '--win-menu',
-        '--win-shortcut'
-      ]
-    } else if (org.gradle.internal.os.OperatingSystem.current().isLinux()) {
-      installerOptions += [
-        '--linux-package-name', 'filebot',
-        '--linux-shortcut'
-      ]
-    }
-  }
+tasks.register('copyFrontend', Copy) {
+  from 'frontend/dist'
+  into 'build/resources/main/static'
+  onlyIf { file('frontend/dist').exists() }
 }
+
+processResources.dependsOn copyFrontend
 
 test {
   useJUnitPlatform()

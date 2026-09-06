@@ -42,19 +42,24 @@ java -jar filebot-1.0-SNAPSHOT.jar
 ./gradlew run
 ```
 
-### Building Native Installers
+### Desktop Application (Electron)
 
 ```bash
-# Create application image (all platforms)
-./gradlew jpackageImage
+# Navigate to desktop-wrapper
+cd desktop-wrapper
+npm install
 
-# Create platform-specific installer
-# Linux: ./gradlew jpackage -PinstallerType=deb
-# macOS: ./gradlew jpackage -PinstallerType=dmg
-# Windows: gradlew.bat jpackage -PinstallerType=msi
+# Run desktop app in development mode
+npm run start
+
+# Package desktop installer for current platform
+npm run dist
+
+# Cross-compile desktop installers for all platforms (Windows, macOS, Linux)
+npm run dist:all
 ```
 
-For more details, see [CONTRIBUTING.md](CONTRIBUTING.md#building-native-installers).
+For more details, see [CONTRIBUTING.md](CONTRIBUTING.md#building-production-packages).
 
 ## Development
 

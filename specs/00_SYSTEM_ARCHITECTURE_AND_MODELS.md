@@ -2,7 +2,7 @@
 
 ## 1. High-Level Target Architecture
 
-The target architecture for the migrated FileBot application decouples the legacy Java Swing user interface into a headless **Spring Boot 3 (Java 17)** backend service and a **React 18+ (TypeScript, Tailwind CSS)** frontend web application. The frontend can run in standard desktop web browsers or packaged inside desktop wrappers (Tauri, Electron, or jpackage native launcher) for Windows, macOS, and Linux.
+The target architecture for the migrated FileBot application decouples the legacy Java Swing user interface into a headless **Spring Boot 3 (Java 21)** backend service and a **React 18+ (TypeScript, Tailwind CSS)** frontend web application. The frontend can run in standard desktop web browsers or packaged inside the cross-platform desktop wrapper (**Electron**) for Windows, macOS, and Linux.
 
 ```
 +-----------------------------------------------------------------------------------+

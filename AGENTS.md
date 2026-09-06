@@ -6,12 +6,12 @@ Welcome to the **FileBot Architecture Migration** repository. This document prov
 
 ## 1. Project Overview & Architecture
 
-This repository is a decoupled, modernized fork of **FileBot**. It converts the legacy Java Swing desktop application into a modern headless Spring Boot 3 backend paired with a React 18 TypeScript frontend SPA, which can be packaged into cross-platform desktop installers via Electron or Tauri.
+This repository is a decoupled, modernized fork of **FileBot**. It converts the legacy Java Swing desktop application into a modern headless Spring Boot 3 backend paired with a React 18 TypeScript frontend SPA, which can be packaged into cross-platform desktop installers via Electron.
 
 ### Core Stack
 - **Backend**: Java 21, Spring Boot 3.3.5, Spring WebSocket (STOMP over SockJS), Gradle 8.11 (Java Module System / JPMS enabled).
 - **Frontend**: Vite, React 18, TypeScript, Tailwind CSS, Lucide Icons, Axios.
-- **Desktop Wrappers**: Electron (`desktop-wrapper/main.js`), Tauri (`desktop-wrapper/tauri.conf.json`).
+- **Desktop Wrapper**: Electron (`desktop-wrapper/main.js`, `desktop-wrapper/package.json`).
 - **Specifications**: Architectural and feature specification documents are maintained in `specs/`.
 
 ---
@@ -27,7 +27,7 @@ This repository is a decoupled, modernized fork of **FileBot**. It converts the 
   - `websocket/`: `@EnableWebSocketMessageBroker` configuration and STOMP progress publisher.
 - `src/test/java/net/filebot/backend/`: Unit and integration test suites.
 - `frontend/`: React 18 + TypeScript + Tailwind CSS Single Page Application.
-- `desktop-wrapper/`: Desktop launcher configurations for Electron and Tauri sidecar packaging.
+- `desktop-wrapper/`: Desktop launcher configuration and multi-platform packaging for Electron.
 - `specs/`: Detailed markdown specifications (`00_SYSTEM_ARCHITECTURE_AND_MODELS.md` through `10_CROSS_PLATFORM_PACKAGING_GUIDE.md` and `PLAN.md`).
 
 ---

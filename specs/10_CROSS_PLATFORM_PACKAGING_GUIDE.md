@@ -2,13 +2,13 @@
 
 ## 1. Executive Summary & Strategy
 
-To package the decoupled Spring Boot 3 backend and React 18 frontend into a native, standalone desktop application across **Windows**, **macOS**, and **Linux**, three desktop runtime packaging architectures are supported:
+To package the decoupled Spring Boot 3 backend and React 18 frontend into a native, standalone desktop application across **Windows**, **macOS**, and **Linux**, **Electron** is selected as the unified, cross-platform desktop wrapper:
 
 ```java
 package net.filebot.backend.domain;
 
 public enum PackagingTarget {
-    TAURI, ELECTRON, JPACKAGE
+    ELECTRON
 }
 
 public enum OperatingSystem {
@@ -16,97 +16,104 @@ public enum OperatingSystem {
 }
 ```
 
-1. **Tauri (`PackagingTarget.TAURI`):** Lightweight (~15MB installer size), high performance, native OS webview engine (WebView2 on Windows, WKWebView on macOS, WebKitGTK on Linux).
-2. **Electron (`PackagingTarget.ELECTRON`):** Enterprise standard, uniform rendering engine across all OS targets.
-3. **jpackage + Embedded Web Server (`PackagingTarget.JPACKAGE`):** Pure Java packaging option producing native platform installers (`.msi`, `.dmg`, `.deb`/`.rpm`) bundling a lightweight JRE runtime alongside the Spring Boot executable.
+### Why Electron is the Unified Choice
+1. **Single-Host Multi-Target Builds**: With `electron-builder`, Windows (`.exe`), macOS (`.dmg`, `.zip`), and Linux (`.AppImage`, `.deb`) installers can all be generated from a single development or CI environment without needing separate OS builds.
+2. **Platform-Agnostic Backend (WORA)**: Spring Boot compiles once into `filebot-1.0-SNAPSHOT.jar` across all targets.
+3. **Embedded JRE Bundling**: Pre-compiled, lightweight JRE distributions (Eclipse Temurin or Azul Zulu) can be placed into Electron's `extraResources` for each OS target, eliminating any runtime Java prerequisites for users.
+4. **Direct Frontend Hosting**: Spring Boot bundles the React SPA directly into `src/main/resources/static/`, enabling identical local and network browser access while Electron loads `http://127.0.0.1:8080`.
 
 ---
 
-## 2. Desktop Packaging Architecture Options
-
-### Option 1: Tauri Packaging Strategy (Recommended)
+## 2. Desktop Packaging Architecture
 
 ```
 +-------------------------------------------------------------------------------+
-|                            TAURI APPLICATION BUNDLE                           |
+|                           ELECTRON APPLICATION BUNDLE                         |
 |                                                                               |
 |   +-----------------------------------------------------------------------+   |
-|   |             Tauri Native Shell (Rust Runtime / OS WebView)            |   |
-|   |                         (React Frontend Assets)                       |   |
+|   |             Electron Main Process (Node.js Chromium Runtime)          |   |
+|   |                  (Manages Window, Tray, & Backend Child Process)      |   |
 |   +-----------------------------------------------------------------------+   |
 |                                     |                                         |
-|                 Sidecar Process Execution & Port Discovery                    |
+|                   Spawns & Monitors via ChildProcess                          |
 |                                     v                                         |
 |   +-----------------------------------------------------------------------+   |
-|   |              Sidecar Binary: Headless Spring Boot JAR                 |   |
-|   |                     (Native Image via GraalVM or JRE)                 |   |
+|   |       Bundled JRE + Spring Boot JAR (Serving React SPA & APIs)        |   |
+|   |                     (http://127.0.0.1:8080)                           |   |
 |   +-----------------------------------------------------------------------+   |
 +-------------------------------------------------------------------------------+
 ```
 
-**Tauri Configuration (`tauri.conf.json` snippet):**
-```json
-{
-  "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:5173",
-    "distDir": "../dist"
-  },
-  "tauri": {
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "net.filebot.desktop",
-      "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
-      "externalBin": [
-        "binaries/spring-boot-backend"
-      ]
-    },
-    "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*"
-    }
-  }
-}
-```
-
 ---
 
-### Option 2: Electron Packaging Strategy
+## 3. Configuration & Startup Lifecycle
 
-**Main Process Startup & Sidecar Lifecycle (`main.js`):**
+### 3.1 Electron Main Process (`desktop-wrapper/main.js`)
+
+The main process manages backend process discovery, port readiness detection, and clean shutdown:
+
 ```javascript
 const { app, BrowserWindow } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
-const http = require('http');
+const fs = require('fs');
 
 let mainWindow;
 let backendProcess;
 
-function startBackend() {
-  const javaBinary = 'java';
-  const jarPath = path.join(app.getAppPath(), '..', 'backend', 'filebot-backend.jar');
+function resolveJavaBinary() {
+  const bundledJava = process.platform === 'win32'
+    ? path.join(process.resourcesPath, 'jre', 'bin', 'java.exe')
+    : path.join(process.resourcesPath, 'jre', 'bin', 'java');
 
-  backendProcess = spawn(javaBinary, ['-jar', jarPath, '--server.port=0'], {
+  return fs.existsSync(bundledJava) ? bundledJava : 'java';
+}
+
+function resolveJarPath() {
+  const candidateDirs = [
+    path.join(process.resourcesPath, 'backend'),
+    path.join(app.getAppPath(), '..', 'build', 'libs'),
+    path.join(__dirname, '..', 'build', 'libs')
+  ];
+
+  for (const dir of candidateDirs) {
+    if (fs.existsSync(dir)) {
+      const files = fs.readdirSync(dir);
+      const jar = files.find(f => f.startsWith('filebot') && f.endsWith('.jar') && !f.endsWith('-sources.jar'));
+      if (jar) return path.join(dir, jar);
+    }
+  }
+  return path.join(app.getAppPath(), '..', 'build', 'libs', 'filebot-1.0-SNAPSHOT.jar');
+}
+
+function startBackend() {
+  const javaBinary = resolveJavaBinary();
+  const jarPath = resolveJarPath();
+
+  backendProcess = spawn(javaBinary, ['-jar', jarPath, '--server.port=8080'], {
     stdio: 'pipe'
   });
 
   backendProcess.stdout.on('data', (data) => {
     const line = data.toString();
-    const portMatch = line.match(/Tomcat started on port\(s\): (\d+)/);
-    if (portMatch) {
-      const port = portMatch[1];
-      createWindow(`http://127.0.0.1:${port}`);
+    if (line.includes('Started FileBotBackendApplication') || line.includes('Tomcat started')) {
+      createWindow('http://127.0.0.1:8080');
     }
   });
+
+  setTimeout(() => {
+    if (!mainWindow) createWindow('http://127.0.0.1:8080');
+  }, 4000);
 }
 
 function createWindow(url) {
+  if (mainWindow) return;
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'FileBot',
+    minWidth: 900,
+    minHeight: 600,
+    title: 'FileBot Desktop',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true
@@ -119,51 +126,78 @@ app.whenReady().then(startBackend);
 
 app.on('window-all-closed', () => {
   if (backendProcess) backendProcess.kill();
-  app.quit();
+  if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  if (backendProcess) backendProcess.kill();
 });
 ```
 
----
+### 3.2 Build & Packaging Configuration (`desktop-wrapper/package.json`)
 
-### Option 3: JDK `jpackage` Native Installer Bundling
-
-The `jpackage` tool produces platform-native installers with a stripped-down Custom JRE created via `jlink`.
-
-**Gradle `jpackage` Build Task Script:**
-```groovy
-tasks.register('createNativeAppImage', Exec) {
-    dependsOn bootJar
-
-    commandLine 'jpackage',
-        '--type', 'app-image',
-        '--name', 'FileBot',
-        '--input', 'build/libs',
-        '--main-jar', "${project.name}-${project.version}.jar",
-        '--main-class', 'org.springframework.boot.loader.JarLauncher',
-        '--dest', 'build/dist',
-        '--java-options', '-Djava.awt.headless=true',
-        '--icon', "src/main/resources/net/filebot/resources/window.icon64.png"
+```json
+{
+  "name": "filebot-desktop",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "dist:all": "electron-builder -mwl",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "net.filebot.desktop",
+    "productName": "FileBot",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../build/libs",
+        "to": "backend",
+        "filter": ["*.jar"]
+      }
+    ],
+    "win": {
+      "target": ["nsis", "portable"]
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.utilities"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility"
+    }
+  }
 }
 ```
 
 ---
 
-## 3. Platform-Specific Native Integration
+## 4. Platform-Specific Native Integration
 
 1. **Windows (`OperatingSystem.WINDOWS`):**
-   - Bundled with installer (`.msi` / `.exe` via InnoSetup or WiX Toolset).
-   - Windows drag-and-drop file paths normalized to standard backslash paths.
+   - Packaged into an NSIS installer (`.exe`) and portable standalone binary.
+   - Native Windows notification toasts and file drag-and-drop normalization.
 2. **macOS (`OperatingSystem.MACOS`):**
-   - Universal Binary (Apple Silicon `arm64` and Intel `x86_64`).
-   - App bundle signed with Apple Developer ID certificate and notarized via `xcrun notarytool`.
-   - Native macOS Menu Bar integration.
+   - Packaged as `.dmg` and `.zip` bundles (Universal or x86_64 / Apple Silicon arm64).
+   - Standard macOS Application menu and Dock tile support.
 3. **Linux (`OperatingSystem.LINUX`):**
-   - Packaging formats: `.deb`, `.rpm`, `.AppImage`, and `Flatpak`.
-   - Desktop entry file (`filebot.desktop`) registered for MIME type handling.
+   - Packaged as `.AppImage` (runs on all major distros) and Debian `.deb`.
+   - Desktop entry file with MIME type associations for video, audio, and subtitle formats.
 
 ---
 
-## 4. Summary Table of Deliverable Specifications
+## 5. Summary Table of Deliverable Specifications
 
 | Document Path | Specification Area |
 | :--- | :--- |
@@ -177,4 +211,4 @@ tasks.register('createNativeAppImage', Exec) {
 | `specs/07_ANALYZE_PANEL_AND_MEDIAINFO_INSPECTOR.md` | Analyze Panel & MediaInfo Inspector |
 | `specs/08_HISTORY_AND_TRANSACTION_ROLLBACK.md` | History & Transaction Rollback |
 | `specs/09_SETTINGS_AND_PREFERENCES.md` | Settings & Preferences |
-| `specs/10_CROSS_PLATFORM_PACKAGING_GUIDE.md` | Cross-Platform Packaging & Desktop Wrapper Guide |
+| `specs/10_CROSS_PLATFORM_PACKAGING_GUIDE.md` | Cross-Platform Packaging & Desktop Wrapper Guide (Electron) |

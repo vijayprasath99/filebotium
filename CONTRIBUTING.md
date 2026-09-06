@@ -28,7 +28,7 @@ filebotium/
 │   │   │   └── websocket/              # STOMP WebSocket Config & Publisher
 │   ├── test/java/net/filebot/backend/  # Integration & Unit tests
 ├── frontend/                           # React 18 + TypeScript + Tailwind SPA
-├── desktop-wrapper/                    # Electron & Tauri desktop configurations
+├── desktop-wrapper/                    # Electron desktop configuration and packaging
 ├── specs/                              # Architecture & Feature specifications
 └── build.gradle                        # Gradle build configuration
 ```
@@ -96,48 +96,51 @@ Output files will be generated in `frontend/dist/`.
 
 ---
 
-## 3. Desktop Wrapper (Electron & Tauri) Setup
+## 3. Desktop Wrapper (Electron) Setup
 
 Desktop packaging configurations reside in `desktop-wrapper/`.
 
-#### Electron Setup
 ```bash
 cd desktop-wrapper
-npm install
-npm run start
-```
 
-#### Tauri Setup
-Ensure you have the Rust toolchain installed, then:
-```bash
-cd desktop-wrapper
-cargo tauri dev
+# Install Electron dependencies
+npm install
+
+# Start the desktop application
+npm run start
 ```
 
 ---
 
 ## 4. Building Production Packages
 
-### Building JAR
+### Step 1: Build Frontend Assets
 ```bash
+cd frontend
+npm run build
+```
+
+### Step 2: Build Spring Boot Backend JAR
+```bash
+# In repository root
 ./gradlew jar
 ```
-The compiled output will be located in `build/libs/filebot-1.0-SNAPSHOT.jar`.
+The compiled output will be located in `build/libs/filebot-1.0-SNAPSHOT.jar`. If `frontend/dist` exists, running `./gradlew build` automatically bundles the frontend static assets into the backend JAR.
 
-### Building Native Installers (jpackage)
+### Step 3: Package Desktop Application (Electron)
 ```bash
-# Create cross-platform app image
-./gradlew jpackageImage
+cd desktop-wrapper
 
-# Create platform-specific installer:
-# Linux (.deb):
-./gradlew jpackage -PinstallerType=deb
+# Build installer for current operating system:
+npm run dist
 
-# macOS (.dmg):
-./gradlew jpackage -PinstallerType=dmg
+# Cross-compile installers for all platforms (Windows, macOS, Linux):
+npm run dist:all
 
-# Windows (.msi):
-gradlew.bat jpackage -PinstallerType=msi
+# Or build platform-specific targets individually:
+npm run dist:win      # Windows (.exe installer & portable)
+npm run dist:mac      # macOS (.dmg & .zip)
+npm run dist:linux    # Linux (.AppImage & .deb)
 ```
 
 ---
