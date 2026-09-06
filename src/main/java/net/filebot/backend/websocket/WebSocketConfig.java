@@ -11,6 +11,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
   public static final String WS_ENDPOINT = "/ws";
+  public static final String API_WS_ENDPOINT = "/api/ws";
   public static final String TOPIC_RENAME_PROGRESS = "/topic/rename/progress";
   public static final String TOPIC_SFV_PROGRESS = "/topic/sfv/progress";
   public static final String TOPIC_NOTIFICATIONS = "/topic/notifications";
@@ -23,6 +24,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
   @Override
   public void registerStompEndpoints(StompEndpointRegistry registry) {
-    registry.addEndpoint(WS_ENDPOINT).setAllowedOriginPatterns("*");
+    registry.addEndpoint(WS_ENDPOINT, API_WS_ENDPOINT).setAllowedOriginPatterns("*");
   }
 }

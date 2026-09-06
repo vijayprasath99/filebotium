@@ -183,13 +183,68 @@ dependencies {
   testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
 }
 
-tasks.register('copyFrontend', Copy) {
-  from 'frontend/dist'
-  into 'build/resources/main/static'
-  onlyIf { file('frontend/dist').exists() }
+def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
+def skipFrontend = project.hasProperty('skipFrontend')
+
+tasks.register('npmInstall', Exec) {
+  group = 'frontend'
+  description = 'Installs npm dependencies in the frontend directory'
+  workingDir 'frontend'
+  inputs.file 'frontend/package.json'
+  if (file('frontend/package-lock.json').exists()) {
+    inputs.file 'frontend/package-lock.json'
+  }
+  outputs.dir 'frontend/node_modules'
+  onlyIf { !skipFrontend }
+
+  if (isWindows) {
+    commandLine 'cmd', '/c', 'npm', 'install'
+  } else {
+    commandLine 'npm', 'install'
+  }
 }
 
-processResources.dependsOn copyFrontend
+tasks.register('buildFrontend', Exec) {
+  group = 'frontend'
+  description = 'Compiles the React frontend application via npm run build'
+  dependsOn 'npmInstall'
+  workingDir 'frontend'
+  inputs.dir 'frontend/src'
+  if (file('frontend/public').exists()) {
+    inputs.dir 'frontend/public'
+  }
+  inputs.file 'frontend/index.html'
+  inputs.file 'frontend/package.json'
+  inputs.file 'frontend/vite.config.ts'
+  inputs.file 'frontend/tsconfig.json'
+  inputs.file 'frontend/tailwind.config.js'
+  outputs.dir 'frontend/dist'
+  onlyIf { !skipFrontend }
+
+  if (isWindows) {
+    commandLine 'cmd', '/c', 'npm', 'run', 'build'
+  } else {
+    commandLine 'npm', 'run', 'build'
+  }
+}
+
+tasks.register('copyFrontend', Copy) {
+  group = 'frontend'
+  description = 'Copies compiled frontend assets into backend static resources'
+  dependsOn 'buildFrontend'
+  from 'frontend/dist'
+  into layout.buildDirectory.dir('resources/main/static/ui')
+  onlyIf { !skipFrontend && file('frontend/dist').exists() }
+}
+
+tasks.register('cleanFrontend', Delete) {
+  group = 'frontend'
+  description = 'Cleans the compiled frontend distribution directory'
+  delete 'frontend/dist'
+}
+
+clean.dependsOn 'cleanFrontend'
+processResources.dependsOn 'copyFrontend'
 
 test {
   useJUnitPlatform()

@@ -11,6 +11,7 @@ This is fork of one of these repos (I forgot which one, if I think hard enough, 
 ## Requirements
 
 - **Java 21** (JDK required for building, JRE sufficient for running)
+- **Node.js 18+ & npm** (Required for building the React frontend during Gradle build)
 
 ## Download
 
@@ -30,16 +31,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed build instructions.
 
 ### Running the Application
 
-#### Using Pre-built JAR
-```bash
-./gradlew jar
-cd build/libs
-java -jar filebot-1.0-SNAPSHOT.jar
-```
+The build is unified: Gradle automatically compiles both the React frontend and Spring Boot backend.
 
-#### Using Gradle
+#### Run with Gradle (Recommended)
 ```bash
-./gradlew run
+# Automatically builds frontend and runs backend + UI
+./gradlew bootRun
+```
+Once started, open your browser:
+- **Web UI**: [http://localhost:8080/](http://localhost:8080/) (automatically redirects to `/ui/`)
+- **REST APIs**: [http://localhost:8080/api/v1/app/status](http://localhost:8080/api/v1/app/status)
+- **WebSocket (STOMP)**: `http://localhost:8080/api/ws` or `/ws`
+
+#### Using Packaged JAR
+```bash
+# Builds frontend, runs tests, and packages static UI into the JAR:
+./gradlew build
+
+# Run the packaged JAR
+java -jar build/libs/filebot-1.0-SNAPSHOT.jar
 ```
 
 ### Desktop Application (Electron)

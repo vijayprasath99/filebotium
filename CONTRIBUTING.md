@@ -21,11 +21,12 @@ filebotium/
 ├── src/
 │   ├── main/java/net/filebot/          # Legacy Swing & Domain logic
 │   │   ├── backend/                    # Spring Boot 3 Backend
+│   │   │   ├── config/                 # WebMvc & SPA Resource Routing (/ui)
 │   │   │   ├── domain/                 # Domain Enums
 │   │   │   ├── dto/                    # Java 17 DTO Records
 │   │   │   ├── service/                # Headless @Service Wrappers
-│   │   │   ├── controller/             # REST Controllers
-│   │   │   └── websocket/              # STOMP WebSocket Config & Publisher
+│   │   │   ├── controller/             # REST Controllers (/api/)
+│   │   │   └── websocket/              # STOMP WebSocket Config & Publisher (/ws, /api/ws)
 │   ├── test/java/net/filebot/backend/  # Integration & Unit tests
 ├── frontend/                           # React 18 + TypeScript + Tailwind SPA
 ├── desktop-wrapper/                    # Electron desktop configuration and packaging
@@ -37,25 +38,33 @@ filebotium/
 
 ## Local Development Setup
 
-### 1. Spring Boot Backend Setup
+### 1. Spring Boot Backend & Unified Application
 
-The backend runs on **Java 21** using Spring Boot 3 and Gradle.
+The backend runs on **Java 21** using Spring Boot 3 and Gradle. The Gradle build automatically handles building the React frontend.
 
-#### Running the Backend
-To start the Spring Boot application locally:
+#### Running the Unified Application
+To start the application locally:
 ```bash
 ./gradlew bootRun
 ```
-*Alternatively, you can run:*
-```bash
-./gradlew run
-```
-The REST API server will be available at `http://localhost:8080/api`.
+This task automatically:
+1. Installs frontend npm packages (`npmInstall`) if needed.
+2. Compiles the React SPA (`buildFrontend`) into `frontend/dist`.
+3. Copies static assets into backend resources (`static/ui`).
+4. Boots the Spring Boot server on `http://localhost:8080/`.
+
+Once running:
+- **Web UI**: Access [http://localhost:8080/](http://localhost:8080/) or [http://localhost:8080/ui/](http://localhost:8080/ui/). Root `/` and `/ui` automatically redirect to `/ui/`, and client-side SPA routes fallback to `index.html`.
+- **REST APIs**: All REST endpoints are served under `/api/` (e.g. `http://localhost:8080/api/v1/app/status`).
+- **WebSocket (STOMP)**: Endpoints registered at `/api/ws` and `/ws`.
 
 #### Running Tests
 To run unit and integration tests:
 ```bash
 ./gradlew test
+
+# Or skip frontend rebuilding during rapid backend test iterations:
+./gradlew test -PskipFrontend
 ```
 
 #### Code Formatting & Style
@@ -70,9 +79,9 @@ Code formatting is enforced using Spotless and Google Java Format.
 
 ---
 
-## 2. React 18 Frontend Setup
+## 2. React 18 Frontend (Standalone Dev Mode)
 
-The frontend is located in the `frontend/` directory and built with **Vite, React 18, TypeScript, and Tailwind CSS**.
+The frontend is located in `frontend/` and built with **Vite, React 18, TypeScript, and Tailwind CSS**. While Gradle handles production builds automatically, you can also run Vite's standalone dev server with Hot Module Replacement (HMR).
 
 #### Installation & Development Server
 ```bash
@@ -82,17 +91,10 @@ cd frontend
 # Install Node modules
 npm install
 
-# Start the Vite development server with Hot Module Replacement (HMR)
+# Start the Vite development server with HMR
 npm run dev
 ```
-The SPA will be accessible at `http://localhost:5173`. API requests are proxied or directed to `http://localhost:8080/api`.
-
-#### Building the Frontend
-To build static assets for production:
-```bash
-npm run build
-```
-Output files will be generated in `frontend/dist/`.
+The standalone SPA runs at `http://localhost:5173/ui/`. Requests to `/api` and `/ws` are proxied to the backend at `http://localhost:8080`.
 
 ---
 
@@ -114,20 +116,14 @@ npm run start
 
 ## 4. Building Production Packages
 
-### Step 1: Build Frontend Assets
-```bash
-cd frontend
-npm run build
-```
-
-### Step 2: Build Spring Boot Backend JAR
+### Step 1: Build Unified Backend JAR with Bundled UI
 ```bash
 # In repository root
-./gradlew jar
+./gradlew build
 ```
-The compiled output will be located in `build/libs/filebot-1.0-SNAPSHOT.jar`. If `frontend/dist` exists, running `./gradlew build` automatically bundles the frontend static assets into the backend JAR.
+Gradle automatically builds the frontend (`npm run build`), runs all tests, and packages both the Spring Boot backend and static UI into `build/libs/filebot-1.0-SNAPSHOT.jar`.
 
-### Step 3: Package Desktop Application (Electron)
+### Step 2: Package Desktop Application (Electron)
 ```bash
 cd desktop-wrapper
 

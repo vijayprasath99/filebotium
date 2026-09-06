@@ -20,7 +20,7 @@ public enum OperatingSystem {
 1. **Single-Host Multi-Target Builds**: With `electron-builder`, Windows (`.exe`), macOS (`.dmg`, `.zip`), and Linux (`.AppImage`, `.deb`) installers can all be generated from a single development or CI environment without needing separate OS builds.
 2. **Platform-Agnostic Backend (WORA)**: Spring Boot compiles once into `filebot-1.0-SNAPSHOT.jar` across all targets.
 3. **Embedded JRE Bundling**: Pre-compiled, lightweight JRE distributions (Eclipse Temurin or Azul Zulu) can be placed into Electron's `extraResources` for each OS target, eliminating any runtime Java prerequisites for users.
-4. **Direct Frontend Hosting**: Spring Boot bundles the React SPA directly into `src/main/resources/static/`, enabling identical local and network browser access while Electron loads `http://127.0.0.1:8080`.
+4. **Direct Frontend Hosting**: Spring Boot bundles the React SPA directly into static resources under `static/ui/`, enabling identical local and network browser access while Electron loads `http://127.0.0.1:8080/ui`.
 
 ---
 

@@ -53,7 +53,7 @@ function startBackend() {
     const line = data.toString();
     console.log(`[Backend]: ${line}`);
     if (line.includes('Started FileBotBackendApplication') || line.includes('Tomcat started') || line.includes('Started App')) {
-      createWindow('http://127.0.0.1:8080');
+      createWindow('http://127.0.0.1:8080/ui');
     }
   });
 
@@ -68,7 +68,7 @@ function startBackend() {
   // Fallback timeout launch
   setTimeout(() => {
     if (!mainWindow) {
-      createWindow('http://127.0.0.1:8080');
+      createWindow('http://127.0.0.1:8080/ui');
     }
   }, 4000);
 }

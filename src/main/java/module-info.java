@@ -117,6 +117,7 @@ module net.filebot {
   requires spring.boot.autoconfigure;
   requires spring.context;
   requires spring.web;
+  requires spring.webmvc;
   requires spring.messaging;
   requires spring.websocket;
   requires org.apache.tomcat.embed.core;
@@ -133,6 +134,7 @@ module net.filebot {
   exports net.filebot.media;
   exports net.filebot.mediainfo;
   exports net.filebot.backend;
+  exports net.filebot.backend.config;
   exports net.filebot.backend.domain;
   exports net.filebot.backend.dto;
   exports net.filebot.backend.service;
@@ -200,6 +202,11 @@ module net.filebot {
       spring.core,
       spring.beans,
       spring.context;
+  opens net.filebot.backend.config to
+      spring.core,
+      spring.beans,
+      spring.context,
+      spring.web;
   opens net.filebot.backend.controller to
       spring.core,
       spring.beans,
