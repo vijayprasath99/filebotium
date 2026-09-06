@@ -120,12 +120,14 @@ public record SubtitleStreamDto(
 ### Component Architecture
 
 ```
-AnalyzePanel
-├── FileTreeSidebar
-│   ├── DirectoryTreeNodes
-│   └── FileTypeFilterBar
-├── ToolSelectorTabs (MediaInfo, Extended Attributes, File Types, Extractor)
-└── InspectionDetailView
+AnalyzePanel (Legacy Name: Filter)
+├── LeftSidebar
+│   ├── FileTree (Hierarchical Directory/File Nodes)
+│   └── BottomControls (Load button, Clear button)
+├── ToolSelectorTabs (Archives | Types | Parts | Attributes | MediaInfo)
+└── RightDetailView
+    ├── TypesTreeSection (e.g., Episode, Video, Audio grouped by type with counts)
+    ├── ContextMenu (Send to -> Rename/SFV/List, Reveal, Reveal Folder, Expand all)
     ├── GeneralSummaryCard (Container, Duration, Bitrate)
     ├── VideoStreamsSection (Codec, Resolution, Aspect Ratio, HDR)
     ├── AudioStreamsSection (Codec, Channels, Language)

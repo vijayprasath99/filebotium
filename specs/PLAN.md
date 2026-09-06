@@ -1,194 +1,91 @@
-# Swing to Spring Boot + React Migration Implementation Plan & Task Breakdown
+# FileBot React UI Implementation Plan
 
 ## Executive Summary
-This document provides a detailed, phase-by-phase execution plan for refactoring the FileBot Java Swing desktop codebase into a decoupled, headless Spring Boot 3 backend and React 18 frontend. Subsequent engineering agents or developers should follow this document sequentially to achieve the migration defined in `specs/00` through `specs/10`.
+This document provides a highly detailed, step-by-step execution plan tailored for a UI-focused agent (Gemini-Flash) to implement the React 18 + Tailwind CSS frontend for FileBot. 
+
+**CRITICAL INSTRUCTION FOR UI AGENT:** For every component implemented, you MUST refer to the visual reference screenshots located in `specs/screenshot-ref/`. Your goal is to modernize the Swing UI into a web layout while precisely preserving the spatial arrangement, split views, iconography, and list layouts shown in the screenshots.
 
 ---
 
-## Migration Philosophy & Directives
-1. **Preserve Domain Core:** Retain existing business logic, tokenization, Levenshtein similarity metrics (`net.filebot.similarity.*`), format compilers (`net.filebot.format.*`), scraper clients (`net.filebot.web.*`), and checksum utilities (`net.filebot.hash.*`).
-2. **Synthetic / Integration Testing First:** Before modifying or wrapping domain classes, write comprehensive synthetic integration tests (`MockMvc` tests, service layer unit/integration tests) to lock down expected behavior.
-3. **Decouple UI:** Extract domain logic out of Swing component event listeners (`ActionListener`, `DocumentListener`, `TransferHandler`) into headless `@Service` classes before deleting Swing UI code (`net.filebot.ui.*`).
-4. **Strong Typing via Enums:** Enforce strongly typed Java `enum` and TypeScript `enum` models across all REST DTOs, WebSocket event payloads, and service methods.
+## Phase 1: Frontend Initialization & Scaffolding
+**Target Directory:** `frontend/`
+
+1. **Scaffold the App:**
+   - Initialize a Vite + React + TypeScript project.
+   - Install core dependencies: `tailwindcss`, `lucide-react` (for icons), `axios` (for API calls), `react-router-dom` (if routing is needed, otherwise state-based tab switching).
+2. **Tailwind Configuration:**
+   - Configure Tailwind to support the color palette seen in the reference images (blues for active states, red for errors, alternating row colors for tables).
+3. **App Shell (`specs/01`):**
+   - Implement the `AppShell` with a `SidebarNav` on the left.
+   - Sidebar should contain vertical navigation buttons with icons: List, Rename, Analyze (Filter), Episodes, Subtitles, SFV.
+   - The selected tab should be highlighted (e.g., blue background as seen in the screenshots).
 
 ---
 
-## Phase 1: Foundation, Domain Models & Synthetic Integration Testing
+## Phase 2: Component Implementation by Workspace
 
-### Task 1.1: Project Dependencies & Package Structure Setup
-- **Target Files:** `build.gradle`, `src/main/java/net/filebot/backend/`
-- **Actions:**
-  1. Add Spring Boot 3 dependencies (`spring-boot-starter-web`, `spring-boot-starter-websocket`, `spring-boot-starter-validation`, `spring-boot-starter-test`).
-  2. Create package structure under `net.filebot.backend`:
-     - `net.filebot.backend.domain` (Enums)
-     - `net.filebot.backend.dto` (Java Records)
-     - `net.filebot.backend.service` (Service Interfaces & Implementations)
-     - `net.filebot.backend.controller` (REST Controllers)
-     - `net.filebot.backend.websocket` (STOMP WebSocket Handlers)
+### Task 2.1: Rename Workspace & Format Editor
+**Reference Images:** `1. Rename Panel.jpg`, `6. SFV Checksum Panel.jpg` (Format Editor)
+**Spec Reference:** `specs/02_RENAME_WORKSPACE_AND_MATCHING_ENGINE.md`
 
-### Task 1.2: Create Shared Domain Enums
-- **Target Files:** `src/main/java/net/filebot/backend/domain/*.java`
-- **Actions:**
-  - Create Java enums as specified in `specs/00_SYSTEM_ARCHITECTURE_AND_MODELS.md`:
-    - `ProviderType` (`THE_TVDB`, `THE_MOVIE_DB`, `ANI_DB`, `TV_MAZE`, `OMDB`, `ACOUSTID`, `OPEN_SUBTITLES`, `SHOOTER`)
-    - `MatchingMode` (`TV`, `MOVIE`, `MUSIC`, `ANIME`, `AUTO`)
-    - `FileAction` (`MOVE`, `COPY`, `HARDLINK`, `SYMLINK`)
-    - `ConflictStrategy` (`OVERWRITE`, `FAIL`, `SKIP`, `AUTO_RENAME`)
-    - `MatchStatus` (`MATCHED`, `CONFLICT`, `MANUAL`, `PENDING`, `EXCLUDED`)
-    - `HistoryStatus` (`COMPLETED`, `ROLLED_BACK`, `FAILED`)
-    - `HashType` (`CRC32`, `MD5`, `SHA_1`, `SHA_256`, `OPENSUBTITLES`)
-    - `ChecksumStatus` (`OK`, `MISMATCH`, `MISSING`, `ERROR`, `COMPUTING`)
-    - `SubtitleProviderType` (`OPEN_SUBTITLES`, `SHOOTER`)
-    - `SubtitleFormat` (`SRT`, `SUB`, `ASS`, `VTT`)
-    - `NotificationLevel` (`INFO`, `WARNING`, `ERROR`, `SUCCESS`)
-    - `WorkspaceTab` (`RENAME`, `EPISODES`, `SUBTITLES`, `SFV`, `ANALYZE`, `LIST`)
-    - `LanguageCode` (`EN`, `DE`, `FR`, `ES`, `IT`, `JA`, `ZH`, `KO`, `RU`, `PT`, `NL`, `SV`, `NO`, `DA`, `FI`, `PL`)
-    - `EpisodeSortOrder` (`AIR_DATE`, `ABSOLUTE`, `DVD`)
-    - `BindingCategory` (`GENERAL`, `VIDEO`, `AUDIO`, `SERIES`, `MOVIE`)
-    - `AnalysisTool` (`MEDIAINFO`, `XATTR`, `TYPES`, `EXTRACT`, `SPLIT`)
+1. **Rename Panel Layout:**
+   - Build a dual-list layout (`MatchTableContainer`). 
+   - Left side: "Original Files" list.
+   - Right side: "New Names" list.
+   - Center/Middle panel: "Match" and "Rename" action buttons with corresponding directional arrows.
+2. **Bottom Toolbar:**
+   - Implement Shift Up, Shift Down (arrow icons) for manual alignment.
+   - Add "Load", "Fetch Data", and "Close" (X icon) buttons.
+3. **Format Editor Modals:**
+   - Implement "Episode Format" modal: Includes a text area for syntax highlighting and a syntax key with examples below it. Add "Cancel" (red icon) and "Use Format" (green icon) buttons.
+   - Implement "Episode Bindings" modal: Inputs for Match Object, Media File, and a Preview table comparing Expression vs. Value.
 
-### Task 1.3: Create DTO Java Records
-- **Target Files:** `src/main/java/net/filebot/backend/dto/*.java`
-- **Actions:**
-  - Implement all DTO records specified in `specs/00` through `specs/10`:
-    - `MediaFileDto`, `EpisodeDto`, `MovieDto`, `MatchDto`, `HistoryElementDto`, `HistoryTransactionDto`, `SubtitleDescriptorDto`, `ChecksumEntryDto`, `SystemStatusDto`, `IntakeRequestDto`, `MatchRequestDto`, `RenameExecutionRequestDto`, `FormatEvaluationRequestDto`, `BindingDocumentationDto`, `SeriesSearchRequestDto`, `EpisodeFetchRequestDto`, `SubtitleSearchRequestDto`, `SubtitleDownloadRequestDto`, `ChecksumVerificationRequestDto`, `MediaInfoInspectorDto`, `AppSettingsDto`, `ProviderCredentialDto`.
+### Task 2.2: Episodes Explorer Panel
+**Reference Image:** `2. Episodes Panel.jpg`
+**Spec Reference:** `specs/04_EPISODES_EXPLORER_AND_FETCHER.md`
 
-### Task 1.4: Synthetic & Integration Test Suite Initialization
-- **Target Files:** `src/test/java/net/filebot/backend/`
-- **Actions:**
-  1. Create synthetic integration tests testing legacy matching behavior (`EpisodeMatcherTest`, `MovieMatcherTest`, `SeasonEpisodeMatcherTest`).
-  2. Create synthetic tests for Groovy format evaluation (`ExpressionFormatTest`).
-  3. Create synthetic tests for OpenSubtitles hash math (`OpenSubtitlesHasherTest`).
-  4. Create synthetic tests for SFV checksum verification (`VerificationFileReaderWriterTest`).
-  5. Create synthetic tests for history rollback operations (`HistoryRollbackIntegrationTest`).
+1. **Top Search Bar:**
+   - Search input (with TV icon).
+   - "All Seasons" dropdown, "Airdate Order" dropdown, "English" language dropdown.
+   - "Find" button with binoculars icon.
+2. **Search Results Area:**
+   - Implement tabs for Search Results (e.g., "History", "The Walking Dead").
+   - Data Table: Show episodes with zebra-striped row styling (alternating white/light blue).
+3. **Bottom Toolbar:**
+   - Add a "Save as..." button with a notepad icon centered at the bottom.
 
----
+### Task 2.3: Subtitles Panel & Downloader
+**Reference Image:** `3. Subtitles Panel & Downloader.jpg`
+**Spec Reference:** `specs/05_SUBTITLES_SEARCH_AND_DOWNLOADER.md`
 
-## Phase 2: Headless Service Layer Implementation
+1. **Split Match Grid:**
+   - Left Column ("Video"): List of local video files.
+   - Right Column ("Subtitle"): Expandable tree structure. Show folder icons for movies/series, and globe/download icons next to matched `.srt` files.
+2. **Bottom Toolbar:**
+   - Left side: "Exact Search" and "Fuzzy Search" buttons.
+   - Right side: "Subtitle Naming" dropdown (e.g., "Match Video and Language"), "Download" button (green icon), and "Close" button (red icon).
 
-### Task 2.1: Rename Workspace & Matching Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/RenameWorkspaceService.java`, `RenameWorkspaceServiceImpl.java`
-- **Actions:**
-  - Wrap `net.filebot.similarity.EpisodeMatcher`, `SeasonEpisodeMatcher`, `SeriesNameMatcher`, and `StandardRenameAction`.
-  - Implement methods: `autoMatch()`, `updateRowAlignment()`, `applyFormat()`, and `executeRename()`.
+### Task 2.4: Analyze (Filter) Panel
+**Reference Image:** `4. Filter Analyze Panel.png`
+**Spec Reference:** `specs/07_ANALYZE_PANEL_AND_MEDIAINFO_INSPECTOR.md`
 
-### Task 2.2: Groovy Format Expression Engine Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/FormatExpressionEngineService.java`, `FormatExpressionEngineServiceImpl.java`
-- **Actions:**
-  - Wrap `net.filebot.format.ExpressionFormat`, `MediaBindingBean`, and `SecureCompiledScript`.
-  - Implement methods: `evaluateExpression()`, `batchEvaluate()`, `getAvailableBindings()`, and `validateExpressionSyntax()`.
-
-### Task 2.3: Episodes Fetcher Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/EpisodeFetcherService.java`, `EpisodeFetcherServiceImpl.java`
-- **Actions:**
-  - Wrap `TheTVDBClient`, `TMDbTVClient`, `AnidbClient`, and `TVMazeClient`.
-  - Implement methods: `searchSeries()`, `getEpisodes()`, and `getFormattedEpisodeList()`.
-
-### Task 2.4: Subtitles Search & Downloader Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/SubtitleService.java`, `SubtitleServiceImpl.java`
-- **Actions:**
-  - Wrap `OpenSubtitlesClient`, `OpenSubtitlesHasher`, and `ShooterSubtitles`.
-  - Implement methods: `computeOpenSubtitlesHash()`, `searchSubtitles()`, `downloadSubtitles()`, and `uploadSubtitle()`.
-
-### Task 2.5: SFV Verification & Checksum Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/ChecksumService.java`, `ChecksumServiceImpl.java`
-- **Actions:**
-  - Wrap `ChecksumComputationService`, `VerificationFileReader`, and `VerificationFileWriter`.
-  - Implement methods: `startVerificationTask()`, `cancelVerificationTask()`, `parseVerificationFile()`, and `generateVerificationFileContent()`.
-
-### Task 2.6: MediaInfo Inspector Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/MediaInfoInspectorService.java`, `MediaInfoInspectorServiceImpl.java`
-- **Actions:**
-  - Wrap native `MediaInfo` library bindings and `MediaCharacteristicsParser`.
-  - Implement methods: `inspectFile()` and `batchInspect()`.
-
-### Task 2.7: History & Transaction Rollback Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/HistoryService.java`, `HistoryServiceImpl.java`
-- **Actions:**
-  - Wrap `History` and `HistorySpooler`.
-  - Implement methods: `getTransactionHistory()`, `getTransactionById()`, `rollbackTransaction()`, `clearHistory()`, and `exportHistory()`.
-
-### Task 2.8: Settings & Preferences Service
-- **Target Files:** `src/main/java/net/filebot/backend/service/SettingsService.java`, `SettingsServiceImpl.java`
-- **Actions:**
-  - Wrap `FilePreferences` and `PropertyFileBackingStore`.
-  - Implement methods: `getAppSettings()`, `updateAppSettings()`, `saveProviderCredentials()`, and `resetToDefaults()`.
+1. **File Tree Sidebar:**
+   - Left pane showing a hierarchical directory/file tree.
+   - Add "Load" and "Clear" buttons at the bottom of the tree pane.
+2. **Right Detail View & Tabs:**
+   - Implement top tabs: "Archives", "Types", "Parts", "Attributes", "MediaInfo".
+   - Under the "Types" tab, display a tree grouped by media type (Episode, Video, Audio) with file counts.
+3. **Context Menu:**
+   - Implement a right-click context menu with options: "Send to" (Rename, SFV, List), "Reveal", "Reveal Folder", "Expand all", "Collapse all".
 
 ---
 
-## Phase 3: REST Controllers & WebSocket Progress Streaming
+## Phase 3: Visual Verification & Polish
 
-### Task 3.1: REST Endpoints
-- **Target Files:** `src/main/java/net/filebot/backend/controller/*.java`
-- **Actions:**
-  - Implement controllers with OpenAPI / JSON Schema validation matching `specs/01` to `specs/09`:
-    - `AppShellController` (`/api/v1/app`)
-    - `RenameWorkspaceController` (`/api/v1/rename`)
-    - `FormatController` (`/api/v1/format`)
-    - `EpisodeController` (`/api/v1/episodes`)
-    - `SubtitleController` (`/api/v1/subtitles`)
-    - `SfvController` (`/api/v1/sfv`)
-    - `AnalyzeController` (`/api/v1/analyze`)
-    - `HistoryController` (`/api/v1/history`)
-    - `SettingsController` (`/api/v1/settings`)
+**Verification Process for the UI Agent:**
+For every component implemented above, execute the following verification checklist before marking the task complete:
 
-### Task 3.2: STOMP Over WebSocket Real-Time Event Pipeline
-- **Target Files:** `src/main/java/net/filebot/backend/websocket/WebSocketConfig.java`, `TaskProgressPublisher.java`
-- **Actions:**
-  - Configure STOMP endpoint at `/ws` with message broker topics:
-    - `/topic/rename/progress`
-    - `/topic/sfv/progress`
-    - `/topic/notifications`
-
----
-
-## Phase 4: React 18 + TypeScript + Tailwind CSS Frontend Implementation
-
-### Task 4.1: React Application Scaffolding
-- **Target Folder:** `frontend/`
-- **Actions:**
-  - Scaffold React + Vite + TypeScript project.
-  - Install Tailwind CSS, TanStack Query, StompJS, Monaco Editor (for Groovy format editing), and Lucide React icons.
-
-### Task 4.2: Frontend Components & Workspace Views
-- **Target Files:** `frontend/src/components/*.tsx`
-- **Actions:**
-  - Implement components according to specs:
-    - `AppShell` & `SidebarNav` (`specs/01`)
-    - `GlobalDropZone` (`specs/01`)
-    - `RenameWorkspace` & `MatchTable` (`specs/02`)
-    - `FormatEditorModal` & `BindingPicker` (`specs/03`)
-    - `EpisodesExplorerPanel` (`specs/04`)
-    - `SubtitlePanel` (`specs/05`)
-    - `SfvPanel` (`specs/06`)
-    - `AnalyzePanel` (`specs/07`)
-    - `HistoryPanel` (`specs/08`)
-    - `SettingsPanel` (`specs/09`)
-
----
-
-## Phase 5: Swing Legacy Cleanup & Desktop Wrapper Packaging
-
-### Task 5.1: Swing Code Cleanup
-- **Target Packages:** `src/main/java/net/filebot/ui/`
-- **Actions:**
-  - Safely deprecate/delete Swing UI classes (`JFrame`, `JPanel`, `JDialog`, `CardLayout`, custom Swing cell renderers and transfer handlers) after verifying all headless service endpoints function cleanly.
-  - Retain core domain, format, web, hash, and similarity packages.
-
-### Task 5.2: Desktop Wrapper Packaging
-- **Target Folder:** `desktop-wrapper/`
-- **Actions:**
-  - Configure desktop sidecar runner using Tauri / Electron or `jpackage` as detailed in `specs/10_CROSS_PLATFORM_PACKAGING_GUIDE.md`.
-  - Validate native file drop and embedded server lifecycle across Windows, macOS, and Linux.
-
----
-
-## Task Verification Matrix
-
-| Task ID | Component / Area | Primary Verification Command |
-| :--- | :--- | :--- |
-| **Phase 1** | Foundation & DTOs | `./gradlew compileJava` |
-| **Phase 2** | Service Wrappers | `./gradlew test` |
-| **Phase 3** | REST Controllers & WebSockets | `./gradlew test` (MockMvc & STOMP integration) |
-| **Phase 4** | React Frontend | `cd frontend && npm run build` |
-| **Phase 5** | Swing Cleanup & Packaging | `./gradlew clean build` |
+1. **Structural Layout Match:** Does the React component have the exact same spatial arrangement (splits, columns, toolbars) as the reference screenshot?
+2. **Iconography & Typography:** Are the Lucide icons correctly mapped to the legacy UI intents (e.g., Binoculars for find, Notepad for save)? Are button texts aligned correctly?
+3. **Color & Styling:** Are zebra-striping, active tab highlights, and colored badges (green for download, red for close) implemented via Tailwind classes?
+4. **Responsive Flexbox:** Do the central lists/tables stretch to fill available space while toolbars remain fixed at the top/bottom?

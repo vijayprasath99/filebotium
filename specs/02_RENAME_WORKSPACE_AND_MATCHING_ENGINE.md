@@ -152,16 +152,19 @@ public record RenameErrorDto(
 
 ```
 RenameWorkspace
-├── RenameToolbar
-│   ├── MatchProviderSelector
-│   ├── ModeSelector (TV / Movie / Music / Anime)
-│   ├── FormatExpressionInput & EditorTrigger
-│   ├── ActionTypeSelector (Move / Copy / Hardlink / Symlink)
-│   └── ExecuteRenameButton
+├── MiddleActionPanel (Match button, Rename button)
 ├── MatchTableContainer
-│   ├── LeftSourceFileList (File Name, Size, Path, Status)
-│   ├── RowAlignmentControls (Shift Up, Shift Down, Exclude)
-│   └── RightFormattedMatchList (Formatted Name, Target Path, Confidence Score)
+│   ├── LeftOriginalFilesList (File Name, Size, Path, Status)
+│   ├── RightNewNamesList (Formatted Name, Target Path, Confidence Score)
+│   └── BottomToolbar (Shift Up/Down buttons, Load, Fetch Data, Clear/Close)
+├── FormatEditorModal (Title: "Episode Format")
+│   ├── SyntaxHighlightedTextArea
+│   ├── SyntaxKeyAndExamples
+│   └── Buttons (Cancel, Use Format)
+├── EpisodeBindingsModal
+│   ├── MatchObjectInput
+│   ├── MediaFileInput
+│   └── PreviewTable (Expression vs Value columns)
 └── OperationExecutorModal
 ```
 

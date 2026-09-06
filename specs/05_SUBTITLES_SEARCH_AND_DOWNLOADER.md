@@ -129,14 +129,17 @@ public record SubtitleDownloadResultDto(
 
 ```
 SubtitlePanel
-├── SubtitleToolbar
-│   ├── ProviderSelector (OPEN_SUBTITLES, SHOOTER)
-│   ├── LanguageFilterDropdown
-│   ├── AutoMatchButton
-│   └── UploadSubtitleButton
-├── SubtitleMatchGrid
-│   ├── VideoFileRow
-│   └── MatchedSubtitleSubrow (Score, Format, Download Badge)
+├── SubtitleMatchGrid (Split View)
+│   ├── LeftVideoColumn (Video File Names)
+│   └── RightSubtitleTree (Expandable subtitle matches with Globe/Download icons)
+├── BottomToolbar
+│   ├── LeftControls
+│   │   ├── ExactSearchButton
+│   │   └── FuzzySearchButton
+│   └── RightControls
+│       ├── SubtitleNamingDropdown (e.g., "Match Video and Language")
+│       ├── DownloadButton (Green icon)
+│       └── CloseButton (Red icon)
 ├── SubtitlePreviewModal
 └── SubtitleUploadModal
 ```

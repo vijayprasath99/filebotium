@@ -112,16 +112,20 @@ public record SearchResultDto(
 
 ```
 EpisodesExplorerPanel
-├── SearchAndFilterHeader
-│   ├── ProviderSelector (TheTVDB, TMDb, AniDB, TVMaze)
-│   ├── SeriesSearchInput
-│   ├── SeasonFilterDropdown
-│   └── LanguageSelector
+├── SearchAndFilterHeader (Top Bar)
+│   ├── SeriesSearchInput (with TV icon placeholder)
+│   ├── SeasonFilterDropdown (e.g., "All Seasons")
+│   ├── SortOrderDropdown (e.g., "Airdate Order")
+│   ├── LanguageSelector (e.g., "English")
+│   └── FindButton (with Binoculars icon)
+├── SearchResultsTabs (e.g., "History", "Series Title")
 ├── SeriesDisambiguationModal
-└── EpisodeDataTable
-    ├── TableHeader (Season, Episode #, Title, Release Date, Absolute #)
-    ├── TableRow (Click to preview formatted name)
-    └── FormatPreviewFooter
+├── EpisodeDataTable
+│   ├── TableHeader (Season, Episode #, Title, Release Date, Absolute #)
+│   ├── TableRow (Zebra-striped rows, Click to preview formatted name)
+│   └── FormatPreviewFooter
+└── BottomToolbar
+    └── SaveAsButton (with Notepad icon)
 ```
 
 ### Props & State Types (TypeScript)

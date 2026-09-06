@@ -1,6 +1,14 @@
 import React from 'react';
 import { WorkspaceTab } from '../types';
-import { FileText, Tv, Subtitles, CheckSquare, BarChart2, History, Settings } from 'lucide-react';
+import {
+  FolderEdit,
+  Globe,
+  FileText,
+  FileCheck,
+  Filter,
+  Wand2,
+  Settings,
+} from 'lucide-react';
 
 interface SidebarNavProps {
   activeTab: WorkspaceTab;
@@ -9,51 +17,54 @@ interface SidebarNavProps {
 }
 
 export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelectTab, onOpenSettings }) => {
-  const tabs: { id: WorkspaceTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'RENAME', label: 'Rename', icon: <FileText className="w-5 h-5" /> },
-    { id: 'EPISODES', label: 'Episodes', icon: <Tv className="w-5 h-5" /> },
-    { id: 'SUBTITLES', label: 'Subtitles', icon: <Subtitles className="w-5 h-5" /> },
-    { id: 'SFV', label: 'SFV', icon: <CheckSquare className="w-5 h-5" /> },
-    { id: 'ANALYZE', label: 'Analyze', icon: <BarChart2 className="w-5 h-5" /> },
-    { id: 'LIST', label: 'History', icon: <History className="w-5 h-5" /> },
+  const tabs: { id: WorkspaceTab; label: string; icon: React.ReactNode; color: string }[] = [
+    { id: 'LIST', label: 'List', icon: <Wand2 className="w-6 h-6" />, color: 'text-amber-500' },
+    { id: 'RENAME', label: 'Rename', icon: <FolderEdit className="w-6 h-6" />, color: 'text-amber-500' },
+    { id: 'ANALYZE', label: 'Filter', icon: <Filter className="w-6 h-6" />, color: 'text-slate-600' },
+    { id: 'EPISODES', label: 'Episodes', icon: <Globe className="w-6 h-6" />, color: 'text-blue-500' },
+    { id: 'SUBTITLES', label: 'Subtitles', icon: <FileText className="w-6 h-6" />, color: 'text-slate-600' },
+    { id: 'SFV', label: 'SFV', icon: <FileCheck className="w-6 h-6" />, color: 'text-emerald-600' },
   ];
 
   return (
-    <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col justify-between p-4 border-r border-slate-800">
-      <div>
-        <div className="flex items-center gap-3 mb-8 px-2">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-lg">F</div>
-          <span className="font-bold text-xl tracking-tight">FileBot</span>
-        </div>
-
-        <nav className="space-y-1">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onSelectTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
+    <aside className="w-[82px] bg-white border border-[#c0c0c0] rounded-[6px] m-2 mr-0 flex flex-col justify-between py-1.5 px-1 shadow-[0_1px_3px_rgba(0,0,0,0.06)] select-none shrink-0 z-20">
+      <div className="flex flex-col items-center w-full space-y-1">
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => onSelectTab(tab.id)}
+              className={`w-full flex flex-col items-center justify-center py-2.5 px-0.5 rounded-[3px] text-[11px] font-sans transition-all duration-100 ${
+                isActive
+                  ? 'bg-[#0070e0] text-white font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'
+                  : 'text-[#333333] hover:bg-[#f0f4f8]'
+              }`}
+              title={tab.label}
+            >
+              <div className={`mb-1 ${isActive ? 'text-white' : tab.color}`}>
                 {tab.icon}
-                {tab.label}
-              </button>
-            );
-          })}
-        </nav>
+              </div>
+              <span className="leading-tight tracking-tight">{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      <button
-        onClick={onOpenSettings}
-        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-      >
-        <Settings className="w-5 h-5" />
-        Settings
-      </button>
+      <div className="w-full pt-1 border-t border-[#e8e8e8]">
+        <button
+          onClick={onOpenSettings}
+          className={`w-full flex flex-col items-center justify-center py-1.5 rounded-[3px] text-[10px] font-sans transition-all ${
+            activeTab === 'SETTINGS'
+              ? 'bg-[#0070e0] text-white font-medium'
+              : 'text-[#555555] hover:bg-[#f0f4f8]'
+          }`}
+          title="Settings"
+        >
+          <Settings className="w-4 h-4 mb-0.5" />
+          <span>Settings</span>
+        </button>
+      </div>
     </aside>
   );
 };

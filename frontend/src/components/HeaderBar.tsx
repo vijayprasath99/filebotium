@@ -1,6 +1,6 @@
 import React from 'react';
 import { WorkspaceTab, SystemStatus } from '../types';
-import { RotateCcw, Cpu } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 
 interface HeaderBarProps {
   activeTab: WorkspaceTab;
@@ -8,30 +8,46 @@ interface HeaderBarProps {
   onUndo: () => void;
 }
 
-export const HeaderBar: React.FC<HeaderBarProps> = ({ activeTab, systemStatus, onUndo }) => {
+const TAB_TITLES: Record<WorkspaceTab, string> = {
+  RENAME: 'Rename',
+  EPISODES: 'Episodes',
+  SUBTITLES: 'Download Subtitles',
+  ANALYZE: 'Filter',
+  SFV: 'SFV Checksum',
+  LIST: 'List',
+  SETTINGS: 'Preferences',
+};
+
+export const HeaderBar: React.FC<HeaderBarProps> = ({ activeTab, onUndo }) => {
   return (
-    <header className="h-16 bg-slate-900 border-b border-slate-800 px-6 flex items-center justify-between text-slate-100">
-      <div className="flex items-center gap-4">
-        <h1 className="text-lg font-semibold text-slate-100">{activeTab} Workspace</h1>
+    <header className="h-9 bg-gradient-to-b from-[#fbfbfb] to-[#ececec] border-b border-[#c8c8c8] px-3.5 flex items-center justify-between select-none shrink-0 relative shadow-[0_1px_0_rgba(255,255,255,0.8)]">
+      {/* macOS Window Controls */}
+      <div className="flex items-center gap-2 z-10">
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] cursor-pointer" />
+          <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] cursor-pointer" />
+          <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] cursor-pointer" />
+        </div>
+        <span className="text-[11px] font-semibold text-[#555555] ml-2 tracking-tight">FileBot</span>
       </div>
 
-      <div className="flex items-center gap-4">
+      {/* Centered Window Title */}
+      <div className="absolute inset-x-0 flex items-center justify-center pointer-events-none">
+        <h1 className="text-[14px] font-normal text-[#222222] tracking-normal font-sans">
+          {TAB_TITLES[activeTab]}
+        </h1>
+      </div>
+
+      {/* Right Controls */}
+      <div className="flex items-center gap-2 z-10">
         <button
           onClick={onUndo}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md transition-colors"
+          title="Undo"
+          className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium bg-gradient-to-b from-white to-[#ececec] hover:from-[#f5f5f5] hover:to-[#e0e0e0] active:from-[#e0e0e0] active:to-[#d0d0d0] text-[#333333] rounded-[4px] border border-[#adadad] shadow-sm transition-all"
         >
-          <RotateCcw className="w-3.5 h-3.5" />
-          Undo
+          <RotateCcw className="w-3 h-3 text-[#555555]" />
+          <span>Undo</span>
         </button>
-
-        {systemStatus && (
-          <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950 px-3 py-1.5 rounded-full border border-slate-800">
-            <Cpu className="w-3.5 h-3.5 text-blue-400" />
-            <span>Java {systemStatus.javaVersion}</span>
-            <span className="text-slate-600">|</span>
-            <span>{systemStatus.osName}</span>
-          </div>
-        )}
       </div>
     </header>
   );
