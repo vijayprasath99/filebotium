@@ -11,7 +11,8 @@ import { AnalyzePanel } from './AnalyzePanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { FormatEditorModal } from './FormatEditorModal';
-import { appApi } from '../api/client';
+import { appApi, historyApi } from '../api/client';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const TAB_ORDER: WorkspaceTab[] = [
   'LIST',
@@ -26,25 +27,16 @@ export const AppShell: React.FC = () => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('RENAME');
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
-  const [formatExpression, setFormatExpression] = useState(
-    '{ drive }/media/tv/{ ~plex.year.id }'
-  );
+  const [formatExpression, setFormatExpression] = useState('{n} - {s00e00} - {t}');
   const [isFormatEditorOpen, setIsFormatEditorOpen] = useState(false);
+  const [notification, setNotification] = useState<{ text: string; isError?: boolean } | null>(null);
 
   useEffect(() => {
     appApi
       .getStatus()
       .then(setSystemStatus)
       .catch(() => {
-        setSystemStatus({
-          appName: 'FileBot',
-          version: '1.0.0',
-          javaVersion: '21.0.2',
-          osName: 'Windows 11',
-          osArch: 'amd64',
-          freeMemoryBytes: 69531280,
-          totalMemoryBytes: 111149056,
-        });
+        setSystemStatus(null);
       });
   }, []);
 
@@ -63,9 +55,15 @@ export const AppShell: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleFilesDropped = useCallback((paths: string[]) => {
-    setDroppedFiles((prev) => [...prev, ...paths]);
-  }, []);
+  const handleFilesDropped = useCallback(
+    (paths: string[]) => {
+      appApi.intakeFiles(paths, activeTab).catch((err) => {
+        console.warn('Failed to register dropped files with backend:', err);
+      });
+      setDroppedFiles((prev) => [...prev, ...paths]);
+    },
+    [activeTab]
+  );
 
   const handleNavigateTab = (tab: WorkspaceTab, files?: string[]) => {
     setActiveTab(tab);
@@ -74,13 +72,65 @@ export const AppShell: React.FC = () => {
     }
   };
 
+  const handleGlobalUndo = async () => {
+    try {
+      const historyList = await historyApi.getHistory();
+      if (!historyList || historyList.length === 0) {
+        setNotification({ text: 'No recent rename transactions to undo.', isError: false });
+        return;
+      }
+      const latest = historyList[0];
+      const result = await historyApi.rollbackTransaction(latest.transactionId);
+      if (result.failureCount > 0) {
+        setNotification({
+          text: `Undo completed with warning: ${result.failureCount} file(s) could not be restored.`,
+          isError: true,
+        });
+      } else {
+        setNotification({
+          text: `Undo successful: Restored ${result.successCount} file(s).`,
+          isError: false,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to execute global undo', err);
+      setNotification({ text: 'Global Undo request failed on backend.', isError: true });
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#ebebeb] text-[#222222] font-sans overflow-hidden select-none">
       <HeaderBar
         activeTab={activeTab}
         systemStatus={systemStatus}
-        onUndo={() => alert('Global Undo triggered')}
+        onUndo={handleGlobalUndo}
       />
+
+      {/* Global Notification Banner */}
+      {notification && (
+        <div
+          className={`flex items-center justify-between px-6 py-2 text-xs border-b transition-all ${
+            notification.isError
+              ? 'bg-red-950 text-red-200 border-red-800'
+              : 'bg-emerald-950 text-emerald-200 border-emerald-800'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {notification.isError ? (
+              <AlertCircle className="w-4 h-4 text-red-400" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            )}
+            <span className="font-medium">{notification.text}</span>
+          </div>
+          <button
+            onClick={() => setNotification(null)}
+            className="text-slate-400 hover:text-white text-xs underline font-medium ml-4"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         <SidebarNav
@@ -99,10 +149,10 @@ export const AppShell: React.FC = () => {
               />
             )}
             {activeTab === 'EPISODES' && <EpisodesExplorerPanel />}
-            {activeTab === 'SUBTITLES' && <SubtitlePanel />}
-            {activeTab === 'SFV' && <SfvPanel />}
+            {activeTab === 'SUBTITLES' && <SubtitlePanel files={droppedFiles} />}
+            {activeTab === 'SFV' && <SfvPanel files={droppedFiles} />}
             {activeTab === 'ANALYZE' && (
-              <AnalyzePanel onNavigateTab={handleNavigateTab} />
+              <AnalyzePanel files={droppedFiles} onNavigateTab={handleNavigateTab} />
             )}
             {activeTab === 'LIST' && <HistoryPanel />}
             {activeTab === 'SETTINGS' && <SettingsPanel />}
@@ -121,3 +171,4 @@ export const AppShell: React.FC = () => {
 };
 
 export default AppShell;
+

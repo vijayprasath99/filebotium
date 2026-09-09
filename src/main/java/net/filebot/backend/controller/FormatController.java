@@ -1,6 +1,7 @@
 package net.filebot.backend.controller;
 
 import java.util.List;
+import java.util.Map;
 import net.filebot.backend.dto.BindingDocumentationDto;
 import net.filebot.backend.dto.FormatEvaluationRequestDto;
 import net.filebot.backend.dto.FormatEvaluationResultDto;
@@ -39,7 +40,17 @@ public class FormatController {
   }
 
   @PostMapping("/validate")
-  public boolean validateExpression(@RequestParam("expression") String expression) {
-    return formatService.validateExpressionSyntax(expression);
+  public boolean validateExpression(
+      @RequestParam(value = "expression", required = false) String expressionParam,
+      @RequestBody(required = false) Map<String, String> body) {
+    String expr = expressionParam;
+    if ((expr == null || expr.isBlank()) && body != null) {
+      expr = body.get("expression");
+    }
+    return formatService.validateExpressionSyntax(expr);
+  }
+
+  public boolean validateExpression(String expression) {
+    return validateExpression(expression, null);
   }
 }

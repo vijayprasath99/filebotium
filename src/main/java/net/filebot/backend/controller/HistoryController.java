@@ -47,7 +47,10 @@ public class HistoryController {
   @PostMapping("/export")
   public void exportHistory(
       @RequestParam(value = "format", defaultValue = "xml") String format,
-      @RequestParam("outputPath") String outputPath) {
+      @RequestParam(value = "outputPath", required = false) String outputPath) {
+    if (outputPath == null || outputPath.isBlank()) {
+      outputPath = "history.xml";
+    }
     historyService.exportHistory(format, outputPath);
   }
 }

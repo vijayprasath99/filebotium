@@ -175,12 +175,86 @@ export interface BindingDocumentation {
   category: BindingCategory;
 }
 
+export interface VideoStream {
+  streamIndex: number;
+  codec: string;
+  width: number;
+  height: number;
+  frameRate: number;
+  bitDepth: number;
+  hdrFormat?: string;
+}
+
+export interface AudioStream {
+  streamIndex: number;
+  codec: string;
+  channels: number;
+  samplingRateHz: number;
+  language: string;
+  bitrate: number;
+}
+
+export interface SubtitleStream {
+  streamIndex: number;
+  format: string;
+  language: string;
+  isDefault: boolean;
+  isForced: boolean;
+}
+
 export interface MediaInfoInspector {
   filePath: string;
   containerFormat: string;
   durationMs: number;
   totalBitrate: number;
-  videoStreams: any[];
-  audioStreams: any[];
-  subtitleStreams: any[];
+  videoStreams: VideoStream[];
+  audioStreams: AudioStream[];
+  subtitleStreams: SubtitleStream[];
+}
+
+export interface RenameError {
+  sourcePath: string;
+  targetPath: string;
+  errorMessage: string;
+}
+
+export interface RenameExecutionResult {
+  transactionId: string;
+  successCount: number;
+  failureCount: number;
+  errors: RenameError[];
+}
+
+export interface FormatEvaluationResult {
+  expression: string;
+  result: string;
+  isError: boolean;
+  errorMessage?: string;
+  executionTimeMs: number;
+}
+
+export interface SubtitleDownloadResult {
+  successCount: number;
+  failureCount: number;
+  downloadedSubtitlePaths: string[];
+}
+
+export interface RollbackError {
+  targetPath: string;
+  expectedSourcePath: string;
+  errorMessage: string;
+}
+
+export interface RollbackResult {
+  transactionId: string;
+  successCount: number;
+  failureCount: number;
+  errors: RollbackError[];
+}
+
+export interface ProviderCredential {
+  provider: ProviderType;
+  apiKey: string;
+  username?: string;
+  password?: string;
 }

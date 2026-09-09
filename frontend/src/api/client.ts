@@ -16,7 +16,15 @@ import {
   AppSettings,
   ProviderType,
   MatchingMode,
-  LanguageCode
+  LanguageCode,
+  EpisodeSortOrder,
+  SubtitleProviderType,
+  HashType,
+  RenameExecutionResult,
+  FormatEvaluationResult,
+  SubtitleDownloadResult,
+  RollbackResult,
+  ProviderCredential
 } from '../types';
 
 const api = axios.create({
@@ -38,11 +46,37 @@ export const appApi = {
 };
 
 export const renameApi = {
-  autoMatch: async (filePaths: string[], provider: ProviderType, mode: MatchingMode, language: LanguageCode, formatExpression?: string): Promise<Match[]> => {
+  autoMatch: async (
+    filePaths: string[],
+    provider: ProviderType,
+    mode: MatchingMode,
+    language: LanguageCode,
+    formatExpression?: string
+  ): Promise<Match[]> => {
     const res = await api.post('/rename/match', { filePaths, provider, mode, language, formatExpression });
     return res.data;
   },
-  executeRename: async (matches: Match[], action: FileAction, conflictStrategy: ConflictStrategy) => {
+  updateRowAlignment: async (
+    matches: Match[],
+    sourceIndex: number,
+    targetIndex: number
+  ): Promise<Match[]> => {
+    const res = await api.post('/rename/align', matches, {
+      params: { sourceIndex, targetIndex }
+    });
+    return res.data;
+  },
+  applyFormat: async (matches: Match[], formatExpression: string): Promise<Match[]> => {
+    const res = await api.post('/rename/format', matches, {
+      params: { formatExpression }
+    });
+    return res.data;
+  },
+  executeRename: async (
+    matches: Match[],
+    action: FileAction,
+    conflictStrategy: ConflictStrategy
+  ): Promise<RenameExecutionResult> => {
     const res = await api.post('/rename/execute', { matches, action, conflictStrategy });
     return res.data;
   }
@@ -56,23 +90,57 @@ export const formatApi = {
   validateExpression: async (expression: string): Promise<boolean> => {
     const res = await api.post('/format/validate', { expression });
     return res.data;
+  },
+  evaluateExpression: async (
+    expression: string,
+    sampleFilePath?: string,
+    sampleMetadata?: any
+  ): Promise<FormatEvaluationResult> => {
+    const res = await api.post('/format/eval', { expression, sampleFilePath, sampleMetadata });
+    return res.data;
   }
 };
 
 export const episodeApi = {
-  searchSeries: async (query: string, provider: ProviderType, language: LanguageCode): Promise<SearchResult[]> => {
+  searchSeries: async (
+    query: string,
+    provider: ProviderType,
+    language: LanguageCode
+  ): Promise<SearchResult[]> => {
     const res = await api.get('/episodes/search', { params: { query, provider, language } });
     return res.data;
   },
-  getEpisodes: async (seriesId: number, provider: ProviderType): Promise<Episode[]> => {
-    const res = await api.get(`/episodes/series/${seriesId}`, { params: { provider } });
+  getEpisodes: async (
+    seriesId: number,
+    provider: ProviderType,
+    sortOrder?: EpisodeSortOrder,
+    language?: LanguageCode,
+    season?: number
+  ): Promise<Episode[]> => {
+    const res = await api.get(`/episodes/series/${seriesId}`, {
+      params: { provider, sortOrder, language, season }
+    });
+    return res.data;
+  },
+  getFormattedEpisodeList: async (seriesId: number, expression: string): Promise<string[]> => {
+    const res = await api.get(`/episodes/series/${seriesId}/format`, { params: { expression } });
     return res.data;
   }
 };
 
 export const subtitleApi = {
-  searchSubtitles: async (videoFilePaths: string[], language: LanguageCode): Promise<SubtitleDescriptor[]> => {
-    const res = await api.post('/subtitles/search', { videoFilePaths, language, provider: 'OPEN_SUBTITLES' });
+  searchSubtitles: async (
+    videoFilePaths: string[],
+    language: LanguageCode,
+    provider: SubtitleProviderType = 'OPEN_SUBTITLES'
+  ): Promise<SubtitleDescriptor[]> => {
+    const res = await api.post('/subtitles/search', { videoFilePaths, language, provider });
+    return res.data;
+  },
+  downloadSubtitles: async (
+    requests: { videoFilePath: string; subtitleId: string; provider?: SubtitleProviderType; targetFormat?: string }[]
+  ): Promise<SubtitleDownloadResult> => {
+    const res = await api.post('/subtitles/download', requests);
     return res.data;
   }
 };
@@ -81,12 +149,35 @@ export const sfvApi = {
   parseSfv: async (sfvFilePath: string): Promise<ChecksumEntry[]> => {
     const res = await api.get('/sfv/parse', { params: { sfvFilePath } });
     return res.data;
+  },
+  startVerificationTask: async (
+    filePaths: string[],
+    hashType: HashType,
+    sfvFilePath?: string
+  ): Promise<string> => {
+    const res = await api.post('/sfv/verify', { filePaths, hashType, sfvFilePath });
+    return res.data;
+  },
+  cancelVerificationTask: async (taskId: string): Promise<void> => {
+    await api.post('/sfv/cancel', null, { params: { taskId } });
+  },
+  exportVerificationFile: async (
+    entries: ChecksumEntry[],
+    hashType: HashType,
+    outputPath?: string
+  ): Promise<string> => {
+    const res = await api.post('/sfv/export', { entries, hashType, outputPath });
+    return res.data;
   }
 };
 
 export const analyzeApi = {
   inspectFile: async (filePath: string): Promise<MediaInfoInspector> => {
     const res = await api.get('/analyze/inspect', { params: { path: filePath } });
+    return res.data;
+  },
+  batchInspect: async (filePaths: string[]): Promise<MediaInfoInspector[]> => {
+    const res = await api.post('/analyze/batch-inspect', filePaths);
     return res.data;
   }
 };
@@ -95,6 +186,19 @@ export const historyApi = {
   getHistory: async (): Promise<HistoryTransaction[]> => {
     const res = await api.get('/history');
     return res.data;
+  },
+  rollbackTransaction: async (
+    transactionId: string,
+    targetPathsToRollback?: string[]
+  ): Promise<RollbackResult> => {
+    const res = await api.post('/history/rollback', { transactionId, targetPathsToRollback });
+    return res.data;
+  },
+  clearHistory: async (): Promise<void> => {
+    await api.delete('/history');
+  },
+  exportHistory: async (format: string = 'xml', outputPath?: string): Promise<void> => {
+    await api.post('/history/export', null, { params: { format, outputPath } });
   }
 };
 
@@ -106,5 +210,11 @@ export const settingsApi = {
   updateSettings: async (settings: AppSettings): Promise<AppSettings> => {
     const res = await api.put('/settings', settings);
     return res.data;
+  },
+  resetToDefaults: async (): Promise<void> => {
+    await api.delete('/settings');
+  },
+  saveCredentials: async (credentials: ProviderCredential): Promise<void> => {
+    await api.post('/settings/credentials', credentials);
   }
 };

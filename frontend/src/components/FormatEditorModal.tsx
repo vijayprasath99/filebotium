@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { EpisodeBindingsModal } from './EpisodeBindingsModal';
+import { formatApi, settingsApi } from '../api/client';
 import { X, CheckCircle2, XCircle, Copy, FolderOpen, ListTree, Tv, Film } from 'lucide-react';
 
 interface FormatEditorModalProps {
@@ -10,12 +11,12 @@ interface FormatEditorModalProps {
 }
 
 const EXAMPLES = [
-  { expr: '{n} - {s00e00} - {t}', preview: 'Firefly - S01E01 - Serenity' },
-  { expr: '{n} - {sxe} - {t}', preview: 'Firefly - 1x01 - Serenity' },
-  { expr: '{n} ({airdate}) {t}', preview: 'Firefly (2002-12-20) Serenity' },
-  { expr: "{n.space('.')}-lower() {t.te} {e.pad(2)}", preview: 'firefly.101' },
-  { expr: "{ny}/{'Season '+s}/{n} - {s00e00} - {t}", preview: 'Firefly (2002)/Season 1/Firefly - S01E01 - Serenity' },
-  { expr: '{drive}/Media/TV Shows/{n} - {s00e00}', preview: 'Z:/Media/TV Shows/Firefly - S01E01 - Serenity' },
+  { expr: '{n} - {s00e00} - {t}', preview: 'Series - S01E01 - Title' },
+  { expr: '{n} - {sxe} - {t}', preview: 'Series - 1x01 - Title' },
+  { expr: '{n} ({airdate}) {t}', preview: 'Series (2024-01-01) Title' },
+  { expr: "{n.space('.')}-lower() {t.te} {e.pad(2)}", preview: 'series.101' },
+  { expr: "{ny}/{'Season '+s}/{n} - {s00e00} - {t}", preview: 'Series (2024)/Season 1/Series - S01E01 - Title' },
+  { expr: '{drive}/Media/TV Shows/{n} - {s00e00}', preview: 'X:/Media/TV Shows/Series - S01E01' },
 ];
 
 export const FormatEditorModal: React.FC<FormatEditorModalProps> = ({
@@ -25,12 +26,15 @@ export const FormatEditorModal: React.FC<FormatEditorModalProps> = ({
   onClose,
 }) => {
   const [expression, setExpression] = useState(
-    initialExpression || '{ drive }/media/tv/{ ~plex.year.id }'
+    initialExpression || '{n} - {s00e00} - {t}'
   );
   const [mode, setMode] = useState<'tv' | 'movie'>('tv');
+  const [preview, setPreview] = useState<string>('');
+  const [isValid, setIsValid] = useState<boolean | null>(null);
+  const [evalError, setEvalError] = useState<string | null>(null);
   const [isBindingsOpen, setIsBindingsOpen] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
@@ -38,23 +42,45 @@ export const FormatEditorModal: React.FC<FormatEditorModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
+  // Live backend evaluation & syntax validation
+  useEffect(() => {
+    if (!expression.trim()) {
+      setPreview('No expression specified');
+      setIsValid(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const valid = await formatApi.validateExpression(expression);
+        setIsValid(valid);
+        const evalRes = await formatApi.evaluateExpression(expression);
+        if (evalRes.isError) {
+          setPreview(evalRes.errorMessage || 'Evaluation error');
+          setEvalError(evalRes.errorMessage || null);
+        } else {
+          setPreview(evalRes.result || '(Empty result)');
+          setEvalError(null);
+        }
+      } catch {
+        setIsValid(false);
+      }
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [expression]);
+
   if (!isOpen) return null;
 
-  // Simple dynamic preview simulation
-  const getDynamicPreview = (expr: string) => {
-    if (expr.includes('plex.year.id')) {
-      return 'Z:/media/tv/Firefly (2002) {tmdb-1437}/Season 01/Firefly (2002) - S01E01 - Serenity';
+  const handleLoadPreset = async () => {
+    try {
+      const settings = await settingsApi.getSettings();
+      if (mode === 'tv') {
+        setExpression(settings.tvFormat || '{n} - {s00e00} - {t}');
+      } else {
+        setExpression(settings.movieFormat || '{n} ({y})/{n} ({y})');
+      }
+    } catch {
+      setExpression('{n} - {s00e00} - {t}');
     }
-    if (expr.includes('s00e00')) {
-      return 'Firefly - S01E01 - Serenity';
-    }
-    if (expr.includes('sxe')) {
-      return 'Firefly - 1x01 - Serenity';
-    }
-    if (expr.includes('firefly.101') || expr.includes('lower()')) {
-      return 'firefly.101';
-    }
-    return 'Firefly (2002)/Season 01/Firefly (2002) - S01E01 - Serenity';
   };
 
   const handleInsertBinding = (binding: string) => {
@@ -81,12 +107,26 @@ export const FormatEditorModal: React.FC<FormatEditorModalProps> = ({
           <div className="p-5 flex flex-col gap-4 bg-slate-900">
             {/* Top Preview Section */}
             <div>
-              <span className="text-xs font-bold text-slate-300 block mb-1">Episode Format</span>
-              <div className="p-2.5 bg-slate-950/90 border border-slate-800 rounded font-mono text-xs text-slate-200 break-all leading-relaxed">
-                <span className="text-blue-400 border-b-2 border-blue-500 pb-0.5">Z:/media/tv/</span>
-                <span className="text-emerald-400 border-b-2 border-emerald-500 pb-0.5 ml-1">
-                  {getDynamicPreview(expression).replace('Z:/media/tv/', '')}
-                </span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-300 block">Episode Format Preview</span>
+                {isValid !== null && (
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                      isValid
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                        : 'bg-red-950 text-red-400 border border-red-800'
+                    }`}
+                  >
+                    {isValid ? '✓ Valid Syntax' : '✗ Syntax Error'}
+                  </span>
+                )}
+              </div>
+              <div
+                className={`p-2.5 bg-slate-950/90 border rounded font-mono text-xs break-all leading-relaxed ${
+                  evalError ? 'border-red-800 text-red-300' : 'border-slate-800 text-emerald-400'
+                }`}
+              >
+                <span>{preview}</span>
               </div>
             </div>
 
@@ -111,9 +151,9 @@ export const FormatEditorModal: React.FC<FormatEditorModalProps> = ({
                   <Copy className="w-3.5 h-3.5" />
                 </button>
                 <button
-                  onClick={() => setExpression('{n} - {s00e00} - {t}')}
+                  onClick={handleLoadPreset}
                   className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded transition-colors"
-                  title="Load Preset"
+                  title="Load Preset from Settings"
                 >
                   <FolderOpen className="w-3.5 h-3.5" />
                 </button>

@@ -1,6 +1,7 @@
 package net.filebot.backend.controller;
 
 import java.util.List;
+import net.filebot.backend.domain.EpisodeSortOrder;
 import net.filebot.backend.domain.LanguageCode;
 import net.filebot.backend.domain.ProviderType;
 import net.filebot.backend.dto.EpisodeDto;
@@ -35,9 +36,12 @@ public class EpisodeController {
   @GetMapping("/series/{seriesId}")
   public List<EpisodeDto> getEpisodes(
       @PathVariable("seriesId") int seriesId,
-      @RequestParam(value = "provider", defaultValue = "THE_TVDB") ProviderType provider) {
+      @RequestParam(value = "provider", defaultValue = "THE_TVDB") ProviderType provider,
+      @RequestParam(value = "sortOrder", required = false) EpisodeSortOrder sortOrder,
+      @RequestParam(value = "language", defaultValue = "EN") LanguageCode language,
+      @RequestParam(value = "season", required = false) Integer season) {
     return episodeService.getEpisodes(
-        new EpisodeFetchRequestDto(seriesId, provider, null, LanguageCode.EN, null));
+        new EpisodeFetchRequestDto(seriesId, provider, sortOrder, language, season));
   }
 
   @GetMapping("/series/{seriesId}/format")

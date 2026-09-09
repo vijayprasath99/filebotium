@@ -1,5 +1,5 @@
-import React from 'react';
-import { Match } from '../types';
+import React, { useState } from 'react';
+import { Match, ProviderType, MatchingMode, FileAction } from '../types';
 import {
   ArrowUpDown,
   ArrowRight,
@@ -10,6 +10,7 @@ import {
   X,
   AlertTriangle,
   Code,
+  FolderTree,
 } from 'lucide-react';
 
 interface MatchTableContainerProps {
@@ -28,6 +29,14 @@ interface MatchTableContainerProps {
   onClear: () => void;
   onOpenFormatEditor: () => void;
   isMatching: boolean;
+  provider: ProviderType;
+  onSelectProvider: (p: ProviderType) => void;
+  mode: MatchingMode;
+  onSelectMode: (m: MatchingMode) => void;
+  action: FileAction;
+  onSelectAction: (a: FileAction) => void;
+  basePath: string;
+  onSetBasePath: (path: string) => void;
 }
 
 export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
@@ -46,14 +55,100 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
   onClear,
   onOpenFormatEditor,
   isMatching,
+  provider,
+  onSelectProvider,
+  mode,
+  onSelectMode,
+  action,
+  onSelectAction,
+  basePath,
+  onSetBasePath,
 }) => {
+  const [showBasePathInput, setShowBasePathInput] = useState(false);
+
   return (
-    <div className="flex-1 flex gap-3 min-h-0 select-none p-1 font-sans">
-      {/* Left Column: Original Files */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="pb-1 px-1">
-          <span className="text-[12px] font-normal text-[#555555]">Original Files</span>
+    <div className="flex-1 flex flex-col min-h-0 select-none p-1 font-sans gap-1.5">
+      {/* Top Configuration Bar */}
+      <div className="flex items-center justify-between px-1 py-1 bg-white/70 border border-[#c0c0c0] rounded-[4px] text-[11px] shrink-0">
+        <div className="flex items-center gap-2">
+          {/* Mode Selector */}
+          <div className="flex items-center gap-1">
+            <span className="text-[#666666] font-medium">Mode:</span>
+            <select
+              value={mode}
+              onChange={(e) => onSelectMode(e.target.value as MatchingMode)}
+              className="bg-white border border-[#adadad] rounded px-1.5 py-0.5 text-[#222222] outline-none cursor-pointer"
+            >
+              <option value="TV">TV Shows</option>
+              <option value="MOVIE">Movies</option>
+              <option value="ANIME">Anime</option>
+            </select>
+          </div>
+
+          {/* Provider Selector */}
+          <div className="flex items-center gap-1">
+            <span className="text-[#666666] font-medium">Provider:</span>
+            <select
+              value={provider}
+              onChange={(e) => onSelectProvider(e.target.value as ProviderType)}
+              className="bg-white border border-[#adadad] rounded px-1.5 py-0.5 text-[#222222] outline-none cursor-pointer"
+            >
+              <option value="THE_TVDB">TheTVDB</option>
+              <option value="THE_MOVIE_DB">TheMovieDB</option>
+              <option value="ANI_DB">AniDB</option>
+              <option value="TV_MAZE">TVmaze</option>
+            </select>
+          </div>
+
+          {/* Action Selector */}
+          <div className="flex items-center gap-1">
+            <span className="text-[#666666] font-medium">Action:</span>
+            <select
+              value={action}
+              onChange={(e) => onSelectAction(e.target.value as FileAction)}
+              className="bg-white border border-[#adadad] rounded px-1.5 py-0.5 text-[#222222] outline-none cursor-pointer"
+            >
+              <option value="MOVE">Move</option>
+              <option value="COPY">Copy</option>
+              <option value="HARDLINK">Hardlink</option>
+              <option value="SYMLINK">Symlink</option>
+            </select>
+          </div>
         </div>
+
+        {/* Base Folder Override (for browser fake path resolution) */}
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowBasePathInput(!showBasePathInput)}
+            className={`flex items-center gap-1 px-2 py-0.5 border rounded-[3px] text-[10px] font-medium transition-colors ${
+              basePath
+                ? 'bg-emerald-50 border-emerald-400 text-emerald-700'
+                : 'bg-white border-[#b0b0b0] text-[#555555] hover:bg-slate-50'
+            }`}
+            title="Set disk base folder if browser uploads fake paths"
+          >
+            <FolderTree className="w-3 h-3" />
+            <span>{basePath ? `Base: ${basePath}` : 'Base Folder Override'}</span>
+          </button>
+          {showBasePathInput && (
+            <input
+              type="text"
+              value={basePath}
+              onChange={(e) => onSetBasePath(e.target.value)}
+              placeholder="e.g. D:/Media/TV"
+              className="px-2 py-0.5 border border-blue-400 rounded bg-white text-[11px] outline-none w-44 font-mono text-[#111111]"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="flex-1 flex gap-3 min-h-0">
+        {/* Left Column: Original Files */}
+        <div className="flex-1 flex flex-col min-h-0">
+          <div className="pb-1 px-1 flex items-center justify-between">
+            <span className="text-[12px] font-normal text-[#555555]">Original Files</span>
+            <span className="text-[10px] text-slate-400 font-mono">({originalFiles.length})</span>
+          </div>
 
         <div className="flex-1 overflow-y-auto bg-white border border-[#a8a8a8] rounded-[2px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)]">
           {originalFiles.length === 0 ? (
@@ -127,17 +222,13 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
             <div>
               {matches.map((m, idx) => {
                 const isSelected = selectedMatchIdx === idx;
-                const isWarningRow = idx === 0 && m.score < 0.9;
+                const isWarningRow = m.score < 0.8 || m.status === 'CONFLICT';
 
-                let rowBg = 'bg-white text-[#111111]';
+                let rowBg = idx % 2 === 1 ? 'bg-[#f7f9fc] text-[#111111]' : 'bg-white text-[#111111]';
                 if (isSelected) {
                   rowBg = 'bg-[#0070e0] text-white font-medium';
                 } else if (isWarningRow) {
-                  rowBg = 'bg-[#ff2222] text-white font-bold';
-                } else if (idx % 2 === 1) {
-                  rowBg = 'bg-[#ffcccc] text-[#331111]';
-                } else {
-                  rowBg = 'bg-[#ffbebe] text-[#331111]';
+                  rowBg = 'bg-[#fee2e2] text-[#991b1b] font-medium';
                 }
 
                 return (
@@ -212,6 +303,7 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

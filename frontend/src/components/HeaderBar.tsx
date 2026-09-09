@@ -24,9 +24,9 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ activeTab, onUndo }) => {
       {/* macOS Window Controls */}
       <div className="flex items-center gap-2 z-10">
         <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] cursor-pointer" />
-          <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] cursor-pointer" />
-          <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] cursor-pointer" />
+          <div className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e]" />
+          <div className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123]" />
+          <div className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29]" />
         </div>
         <span className="text-[11px] font-semibold text-[#555555] ml-2 tracking-tight">FileBot</span>
       </div>

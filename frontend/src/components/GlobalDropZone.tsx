@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Upload } from 'lucide-react';
 
+import { getFilePaths } from '../utils/fileUtils';
+
 interface GlobalDropZoneProps {
   onFilesDropped: (paths: string[]) => void;
   children: React.ReactNode;
@@ -25,7 +27,7 @@ export const GlobalDropZone: React.FC<GlobalDropZoneProps> = ({ onFilesDropped, 
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
-      const paths = files.map((f) => (f as any).path || f.name);
+      const paths = getFilePaths(files);
       onFilesDropped(paths);
     }
   };
