@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { WorkspaceTab, SystemStatus } from '../types';
 import { SidebarNav } from './SidebarNav';
-import { HeaderBar } from './HeaderBar';
 import { GlobalDropZone } from './GlobalDropZone';
 import { RenameWorkspace } from './RenameWorkspace';
 import { EpisodesExplorerPanel } from './EpisodesExplorerPanel';
@@ -11,6 +10,8 @@ import { AnalyzePanel } from './AnalyzePanel';
 import { HistoryPanel } from './HistoryPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { FormatEditorModal } from './FormatEditorModal';
+import { DevLogsModal } from './DevLogsModal';
+import { websocketClient } from '../api/websocketClient';
 import { appApi, historyApi } from '../api/client';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
@@ -29,6 +30,7 @@ export const AppShell: React.FC = () => {
   const [droppedFiles, setDroppedFiles] = useState<string[]>([]);
   const [formatExpression, setFormatExpression] = useState('{n} - {s00e00} - {t}');
   const [isFormatEditorOpen, setIsFormatEditorOpen] = useState(false);
+  const [isDevLogsOpen, setIsDevLogsOpen] = useState(false);
   const [notification, setNotification] = useState<{ text: string; isError?: boolean } | null>(null);
 
   useEffect(() => {
@@ -38,11 +40,23 @@ export const AppShell: React.FC = () => {
       .catch(() => {
         setSystemStatus(null);
       });
+
+    // Auto-connect STOMP WebSocket client for live progress and debugging
+    websocketClient.connect();
+    return () => {
+      websocketClient.disconnect();
+    };
   }, []);
 
-  // Keyboard shortcut navigation (Ctrl/Cmd + 1..6)
+  // Keyboard shortcut navigation (Ctrl/Cmd + 1..6) and Dev Logs (Ctrl/Cmd + Shift + D)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        setIsDevLogsOpen((prev) => !prev);
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '6') {
         const index = parseInt(e.key, 10) - 1;
         if (TAB_ORDER[index]) {
@@ -100,12 +114,6 @@ export const AppShell: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#ebebeb] text-[#222222] font-sans overflow-hidden select-none">
-      <HeaderBar
-        activeTab={activeTab}
-        systemStatus={systemStatus}
-        onUndo={handleGlobalUndo}
-      />
-
       {/* Global Notification Banner */}
       {notification && (
         <div
@@ -137,6 +145,8 @@ export const AppShell: React.FC = () => {
           activeTab={activeTab}
           onSelectTab={setActiveTab}
           onOpenSettings={() => setActiveTab('SETTINGS')}
+          onUndo={handleGlobalUndo}
+          onOpenDevLogs={() => setIsDevLogsOpen(true)}
         />
 
         <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -165,6 +175,11 @@ export const AppShell: React.FC = () => {
         initialExpression={formatExpression}
         onSave={setFormatExpression}
         onClose={() => setIsFormatEditorOpen(false)}
+      />
+
+      <DevLogsModal
+        isOpen={isDevLogsOpen}
+        onClose={() => setIsDevLogsOpen(false)}
       />
     </div>
   );

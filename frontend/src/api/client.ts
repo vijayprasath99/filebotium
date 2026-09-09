@@ -26,6 +26,7 @@ import {
   RollbackResult,
   ProviderCredential
 } from '../types';
+import { apiLogger } from '../utils/apiLogger';
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -33,6 +34,71 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 });
+
+// Request Interceptor: Logs every outgoing REST request
+api.interceptors.request.use(
+  (config) => {
+    const fullUrl = (config.baseURL || '') + (config.url || '');
+    const logId = apiLogger.logRestRequest({
+      method: config.method || 'GET',
+      url: fullUrl,
+      queryParams: config.params,
+      body: config.data,
+      headers: config.headers,
+    });
+    (config as any).metadata = { startTime: Date.now(), logId };
+    return config;
+  },
+  (error) => {
+    apiLogger.logRestError({
+      method: 'UNKNOWN',
+      url: 'REQUEST_CONFIG_ERROR',
+      error,
+    });
+    return Promise.reject(error);
+  }
+);
+
+// Response Interceptor: Logs every incoming REST response / error with duration
+api.interceptors.response.use(
+  (response) => {
+    const metadata = (response.config as any)?.metadata;
+    const startTime = metadata?.startTime || Date.now();
+    const logId = metadata?.logId;
+    const durationMs = Date.now() - startTime;
+    const fullUrl = (response.config.baseURL || '') + (response.config.url || '');
+
+    apiLogger.logRestResponse({
+      logId,
+      method: response.config.method || 'GET',
+      url: fullUrl,
+      status: response.status,
+      durationMs,
+      data: response.data,
+      headers: response.headers,
+    });
+    return response;
+  },
+  (error) => {
+    const config = error.config;
+    const metadata = (config as any)?.metadata;
+    const startTime = metadata?.startTime || Date.now();
+    const logId = metadata?.logId;
+    const durationMs = Date.now() - startTime;
+    const fullUrl = config ? (config.baseURL || '') + (config.url || '') : 'UNKNOWN_URL';
+
+    apiLogger.logRestError({
+      logId,
+      method: config?.method || 'GET',
+      url: fullUrl,
+      status: error.response?.status,
+      durationMs,
+      error,
+      data: error.response?.data,
+    });
+    return Promise.reject(error);
+  }
+);
 
 export const appApi = {
   getStatus: async (): Promise<SystemStatus> => {

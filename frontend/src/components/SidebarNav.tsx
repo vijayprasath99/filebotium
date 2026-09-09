@@ -8,15 +8,25 @@ import {
   Filter,
   Wand2,
   Settings,
+  RotateCcw,
+  Terminal,
 } from 'lucide-react';
 
 interface SidebarNavProps {
   activeTab: WorkspaceTab;
   onSelectTab: (tab: WorkspaceTab) => void;
   onOpenSettings: () => void;
+  onUndo?: () => void;
+  onOpenDevLogs?: () => void;
 }
 
-export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelectTab, onOpenSettings }) => {
+export const SidebarNav: React.FC<SidebarNavProps> = ({
+  activeTab,
+  onSelectTab,
+  onOpenSettings,
+  onUndo,
+  onOpenDevLogs,
+}) => {
   const tabs: { id: WorkspaceTab; label: string; icon: React.ReactNode; color: string }[] = [
     { id: 'LIST', label: 'List', icon: <Wand2 className="w-6 h-6" />, color: 'text-amber-500' },
     { id: 'RENAME', label: 'Rename', icon: <FolderEdit className="w-6 h-6" />, color: 'text-amber-500' },
@@ -51,7 +61,17 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelectTab, 
         })}
       </div>
 
-      <div className="w-full pt-1 border-t border-[#e8e8e8]">
+      <div className="w-full pt-1 border-t border-[#e8e8e8] flex flex-col items-center gap-1">
+        {onUndo && (
+          <button
+            onClick={onUndo}
+            className="w-full flex flex-col items-center justify-center py-1.5 rounded-[3px] text-[10px] font-sans text-[#555555] hover:bg-[#f0f4f8] transition-all"
+            title="Undo Last Action"
+          >
+            <RotateCcw className="w-4 h-4 mb-0.5" />
+            <span>Undo</span>
+          </button>
+        )}
         <button
           onClick={onOpenSettings}
           className={`w-full flex flex-col items-center justify-center py-1.5 rounded-[3px] text-[10px] font-sans transition-all ${
@@ -64,6 +84,16 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelectTab, 
           <Settings className="w-4 h-4 mb-0.5" />
           <span>Settings</span>
         </button>
+        {onOpenDevLogs && (
+          <button
+            onClick={onOpenDevLogs}
+            className="w-full flex flex-col items-center justify-center py-1.5 rounded-[3px] text-[10px] font-sans text-[#555555] hover:bg-[#f0f4f8] hover:text-sky-600 transition-all"
+            title="API & WebSocket Dev Logs (Ctrl+Shift+D)"
+          >
+            <Terminal className="w-4 h-4 mb-0.5" />
+            <span>Dev Logs</span>
+          </button>
+        )}
       </div>
     </aside>
   );

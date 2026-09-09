@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Match, ProviderType, MatchingMode, FileAction } from '../types';
 import {
   ArrowUpDown,
@@ -65,6 +65,59 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
   onSetBasePath,
 }) => {
   const [showBasePathInput, setShowBasePathInput] = useState(false);
+  const [splitPercent, setSplitPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('filebot_rename_split_percent');
+    if (saved) {
+      const parsed = parseFloat(saved);
+      if (!isNaN(parsed) && parsed >= 20 && parsed <= 80) {
+        return parsed;
+      }
+    }
+    return 50;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const newPercent = ((e.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.max(20, Math.min(80, newPercent));
+      setSplitPercent(clamped);
+      localStorage.setItem('filebot_rename_split_percent', clamped.toFixed(1));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const handleStartResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  const handleResetSplit = () => {
+    setSplitPercent(50);
+    localStorage.setItem('filebot_rename_split_percent', '50');
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 select-none p-1 font-sans gap-1.5">
@@ -142,76 +195,108 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 flex gap-3 min-h-0">
-        {/* Left Column: Original Files */}
-        <div className="flex-1 flex flex-col min-h-0">
+      <div ref={containerRef} className="flex-1 flex min-h-0 relative select-none">
+        {/* Left Column: Original Files (Drag & Drop Zone) */}
+        <div
+          style={{ width: `calc(${splitPercent}% - 46px)`, minWidth: '150px' }}
+          className="flex flex-col min-h-0 shrink-0"
+        >
           <div className="pb-1 px-1 flex items-center justify-between">
             <span className="text-[12px] font-normal text-[#555555]">Original Files</span>
             <span className="text-[10px] text-slate-400 font-mono">({originalFiles.length})</span>
           </div>
 
-        <div className="flex-1 overflow-y-auto bg-white border border-[#a8a8a8] rounded-[2px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)]">
-          {originalFiles.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-slate-400 text-xs font-sans">
-              Drag & drop files here
-            </div>
-          ) : (
-            <div>
-              {originalFiles.map((file, idx) => {
-                const isSelected = selectedOriginalIdx === idx;
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => onSelectOriginal(idx)}
-                    className={`px-2 py-0.5 text-[12px] font-mono cursor-pointer truncate ${
-                      isSelected
-                        ? 'bg-[#0070e0] text-white font-medium'
-                        : 'text-[#111111] hover:bg-[#eaf2fc]'
-                    }`}
-                  >
-                    {file}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Center Column: Match & Rename Action Buttons */}
-      <div className="flex flex-col items-center justify-center gap-3 px-1 shrink-0">
-        {/* Match Button */}
-        <button
-          onClick={onMatch}
-          disabled={isMatching || originalFiles.length === 0}
-          className="w-[72px] h-[58px] bg-gradient-to-b from-white via-[#f8f8f8] to-[#e4e4e4] hover:from-[#fdfdfd] hover:to-[#dadada] active:from-[#d8d8d8] active:to-[#cdcdcd] border border-[#a6a6a6] rounded-[5px] shadow-[0_1px_2px_rgba(0,0,0,0.12)] flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-40 transition-all"
-          title="Automatically align episode data with your files"
-        >
-          <div className="flex items-center text-[#16a34a]">
-            <ArrowUpDown className="w-5 h-5 stroke-[2.5]" />
+          <div className="flex-1 overflow-y-auto bg-white border border-[#a8a8a8] rounded-[2px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)] flex flex-col">
+            {originalFiles.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-3 text-center">
+                <div className="text-slate-400 text-xs font-sans">Drag &amp; drop files here</div>
+                <div className="text-[10px] text-slate-400 mt-1">or click &quot;Load&quot; in the bottom toolbar</div>
+              </div>
+            ) : (
+              <div>
+                {originalFiles.map((file, idx) => {
+                  const isSelected = selectedOriginalIdx === idx;
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => onSelectOriginal(idx)}
+                      className={`px-2 py-0.5 text-[12px] font-mono cursor-pointer truncate ${
+                        isSelected
+                          ? 'bg-[#0070e0] text-white font-medium'
+                          : 'text-[#111111] hover:bg-[#eaf2fc]'
+                      }`}
+                    >
+                      {file}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          <span className="text-[11px] font-medium text-[#222222]">Match</span>
-        </button>
-
-        {/* Rename Button */}
-        <button
-          onClick={onRename}
-          disabled={matches.length === 0}
-          className="w-[72px] h-[58px] bg-gradient-to-b from-white via-[#f8f8f8] to-[#e4e4e4] hover:from-[#fdfdfd] hover:to-[#dadada] active:from-[#d8d8d8] active:to-[#cdcdcd] border border-[#a6a6a6] rounded-[5px] shadow-[0_1px_2px_rgba(0,0,0,0.12)] flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-40 transition-all"
-          title="Rename files"
-        >
-          <div className="flex items-center text-[#0070e0]">
-            <ArrowRight className="w-5 h-5 stroke-[2.5]" />
-          </div>
-          <span className="text-[11px] font-medium text-[#222222]">Rename</span>
-        </button>
-      </div>
-
-      {/* Right Column: New Names */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="pb-1 px-1">
-          <span className="text-[12px] font-normal text-[#555555]">New Names</span>
         </div>
+
+        {/* Resizable Splitter Divider (Left side of buttons) */}
+        <div
+          onMouseDown={handleStartResize}
+          onDoubleClick={handleResetSplit}
+          className="w-2 mx-0.5 flex items-center justify-center cursor-col-resize group shrink-0 select-none z-10"
+          title="Drag to resize drop zone (double-click to reset 50/50)"
+        >
+          <div
+            className={`w-0.5 h-12 rounded-full transition-colors ${
+              isResizing ? 'bg-[#0070e0]' : 'bg-[#c8c8c8] group-hover:bg-[#0070e0]'
+            }`}
+          />
+        </div>
+
+        {/* Center Column: Match & Rename Action Buttons */}
+        <div className="flex flex-col items-center justify-center gap-3 px-1 shrink-0">
+          {/* Match Button */}
+          <button
+            onClick={onMatch}
+            disabled={isMatching || originalFiles.length === 0}
+            className="w-[72px] h-[58px] bg-gradient-to-b from-white via-[#f8f8f8] to-[#e4e4e4] hover:from-[#fdfdfd] hover:to-[#dadada] active:from-[#d8d8d8] active:to-[#cdcdcd] border border-[#a6a6a6] rounded-[5px] shadow-[0_1px_2px_rgba(0,0,0,0.12)] flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-40 transition-all"
+            title="Automatically align episode data with your files"
+          >
+            <div className="flex items-center text-[#16a34a]">
+              <ArrowUpDown className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <span className="text-[11px] font-medium text-[#222222]">Match</span>
+          </button>
+
+          {/* Rename Button */}
+          <button
+            onClick={onRename}
+            disabled={matches.length === 0}
+            className="w-[72px] h-[58px] bg-gradient-to-b from-white via-[#f8f8f8] to-[#e4e4e4] hover:from-[#fdfdfd] hover:to-[#dadada] active:from-[#d8d8d8] active:to-[#cdcdcd] border border-[#a6a6a6] rounded-[5px] shadow-[0_1px_2px_rgba(0,0,0,0.12)] flex flex-col items-center justify-center gap-0.5 cursor-pointer disabled:opacity-40 transition-all"
+            title="Rename files"
+          >
+            <div className="flex items-center text-[#0070e0]">
+              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <span className="text-[11px] font-medium text-[#222222]">Rename</span>
+          </button>
+        </div>
+
+        {/* Resizable Splitter Divider (Right side of buttons) */}
+        <div
+          onMouseDown={handleStartResize}
+          onDoubleClick={handleResetSplit}
+          className="w-2 mx-0.5 flex items-center justify-center cursor-col-resize group shrink-0 select-none z-10"
+          title="Drag to resize drop zone (double-click to reset 50/50)"
+        >
+          <div
+            className={`w-0.5 h-12 rounded-full transition-colors ${
+              isResizing ? 'bg-[#0070e0]' : 'bg-[#c8c8c8] group-hover:bg-[#0070e0]'
+            }`}
+          />
+        </div>
+
+        {/* Right Column: New Names */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-[180px]">
+          <div className="pb-1 px-1">
+            <span className="text-[12px] font-normal text-[#555555]">New Names</span>
+          </div>
 
         <div className="flex-1 overflow-y-auto bg-white border border-[#a8a8a8] rounded-[2px] shadow-[inset_1px_1px_2px_rgba(0,0,0,0.08)]">
           {matches.length === 0 ? (

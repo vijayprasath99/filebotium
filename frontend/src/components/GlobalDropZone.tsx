@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload } from 'lucide-react';
 
 import { getFilePaths } from '../utils/fileUtils';
@@ -10,19 +10,53 @@ interface GlobalDropZoneProps {
 
 export const GlobalDropZone: React.FC<GlobalDropZoneProps> = ({ onFilesDropped, children }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  // Failsafe to reset drag state if drag is canceled outside the element or window
+  useEffect(() => {
+    const handleWindowDragEnd = () => {
+      dragCounter.current = 0;
+      setIsDragging(false);
+    };
+    window.addEventListener('dragend', handleWindowDragEnd);
+    window.addEventListener('drop', handleWindowDragEnd);
+    return () => {
+      window.removeEventListener('dragend', handleWindowDragEnd);
+      window.removeEventListener('drop', handleWindowDragEnd);
+    };
+  }, []);
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (dragCounter.current === 1) {
+      setIsDragging(true);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setIsDragging(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
@@ -34,16 +68,18 @@ export const GlobalDropZone: React.FC<GlobalDropZoneProps> = ({ onFilesDropped, 
 
   return (
     <div
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className="relative flex-1 flex flex-col overflow-hidden"
     >
       {isDragging && (
-        <div className="absolute inset-0 bg-blue-600/20 backdrop-blur-sm z-50 flex flex-col items-center justify-center border-4 border-dashed border-blue-500 rounded-xl m-4">
-          <Upload className="w-16 h-16 text-blue-400 animate-bounce mb-4" />
-          <h2 className="text-2xl font-bold text-white">Drop Files to Import</h2>
-          <p className="text-slate-300 mt-2">Release mouse to add files to active workspace</p>
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-start justify-center pt-5 bg-blue-600/10 border-2 border-dashed border-blue-500 rounded-lg select-none transition-all">
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white shadow-lg rounded-full text-xs font-medium tracking-wide">
+            <Upload className="w-4 h-4 animate-bounce pointer-events-none" />
+            <span className="pointer-events-none">Drop files anywhere to import into active workspace</span>
+          </div>
         </div>
       )}
       {children}
