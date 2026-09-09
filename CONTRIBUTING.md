@@ -98,19 +98,33 @@ The standalone SPA runs at `http://localhost:5173/ui/`. Requests to `/api` and `
 
 ---
 
-## 3. Desktop Wrapper (Electron) Setup
+## 3. Desktop Wrapper (Electron) Setup & Local Testing
 
-Desktop packaging configurations reside in `desktop-wrapper/`.
+### Why Test with Electron?
+When accessing FileBot through standard browsers (like Chrome), the web browser security sandbox restricts access to local file paths, supplying only stripped filenames (e.g. `movie.mkv` instead of `C:\Users\...\movie.mkv`). Testing inside Electron provides full operating system access using `webUtils.getPathForFile` via `desktop-wrapper/preload.js`.
 
+### Local Testing Options
+
+#### Option A: Live Dev Mode (Recommended for Rapid Development)
+If your Spring Boot backend is already running (e.g. via `./gradlew bootRun`):
 ```bash
 cd desktop-wrapper
-
-# Install Electron dependencies
-npm install
-
-# Start the desktop application
+npm install   # (first time only)
 npm run start
 ```
+*Electron will automatically detect the running backend on port 8080 and immediately open the native desktop window.*
+
+#### Option B: Standalone Mode (Full Package Lifecycle)
+To test Electron spawning and managing the Spring Boot backend JAR:
+```bash
+# 1. In repository root, compile the JAR:
+./gradlew build
+
+# 2. In desktop-wrapper, launch Electron:
+cd desktop-wrapper
+npm run start
+```
+*Electron will find `build/libs/filebot-1.0-SNAPSHOT.jar`, launch it as a child process, and open the desktop window once the backend is healthy.*
 
 ---
 

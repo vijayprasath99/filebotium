@@ -61,6 +61,11 @@ This repository is a decoupled, modernized fork of **FileBot**. It converts the 
    - All backend changes must pass tests run via `./gradlew test`.
    - Unit tests for services, controllers, and routing configurations belong in `src/test/java/net/filebot/backend/`.
 
+7. **Browser Sandbox vs Desktop Environment & Native File Paths**:
+   - **Browser Sandbox Limitation**: When running in standard web browsers (e.g. Chrome via `http://localhost:8080`), HTML5 drag-and-drop and `<input type="file">` isolate the host filesystem and only provide `file.name` without absolute paths. FileBot's backend (`/api/v1/app/intake`) cannot resolve or manipulate files without real paths.
+   - **Electron Native Resolution**: In Electron 30+, direct `File.path` access is removed from DOM events. Paths are securely extracted via `webUtils.getPathForFile(file)` exposed in `desktop-wrapper/preload.js` as `window.electronAPI.getPath(file)`.
+   - **Frontend File Resolution Standard**: Always resolve file paths via `getFilePath(file)` or `getFilePaths(files)` from `frontend/src/utils/fileUtils.ts` rather than reading raw `(file as any).path`.
+
 ---
 
 ## 4. Useful Commands
@@ -81,6 +86,26 @@ This repository is a decoupled, modernized fork of **FileBot**. It converts the 
 
 # Apply code formatting fixes
 ./gradlew spotlessApply
+```
+
+### Testing Desktop Wrapper (Electron) Locally
+
+Testing in Electron bypasses browser file sandbox restrictions, enabling real local filesystem drag-and-drop and file intake:
+
+```bash
+# Workflow A: Live Dev Mode (Fastest - backend already running via ./gradlew bootRun)
+# Terminal 1:
+./gradlew bootRun
+# Terminal 2:
+cd desktop-wrapper
+npm start
+# (Electron detects port 8080 is active and opens the native window immediately)
+
+# Workflow B: Standalone Mode (Full lifecycle test with backend JAR)
+./gradlew build
+cd desktop-wrapper
+npm start
+# (Electron spawns the packaged JAR from build/libs/ as a child process)
 ```
 
 ### Frontend Standalone Dev Server (Optional)
@@ -107,3 +132,4 @@ Before submitting or completing a task, always verify:
 2. `./gradlew spotlessCheck` passes cleanly.
 3. `./gradlew test` executes with 100% test success rate.
 4. `module-info.java` properly exports and opens any new backend packages.
+5. All file intake points use `getFilePath` / `getFilePaths` from `frontend/src/utils/fileUtils.ts` for Electron compatibility.

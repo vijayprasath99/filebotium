@@ -208,3 +208,6 @@ export interface GlobalDropZoneProps {
    - Triggered if dragged paths cannot be read due to file permission errors or non-existent network shares.
 3. **Clipboard Read Fallback Modal:**
    - Displays raw text editor when clipboard content contains unstructured multiline strings or list data.
+4. **Browser Sandbox Isolation vs Desktop Environment:**
+   - In standard browsers (e.g., Chrome), HTML5 Drag-and-Drop and File inputs sanitize dropped files to protect host security, exposing only `file.name` and omitting full directory paths.
+   - For functional file intake (`POST /api/v1/app/intake`), tests and desktop usage run inside the Electron desktop wrapper (`desktop-wrapper/`). In Electron 30+, `webUtils.getPathForFile(file)` is bridged via `preload.js` and resolved via `frontend/src/utils/fileUtils.ts` to supply full absolute filesystem paths.

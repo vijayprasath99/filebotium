@@ -54,12 +54,18 @@ java -jar build/libs/filebot-1.0-SNAPSHOT.jar
 
 ### Desktop Application (Electron)
 
+Standard web browsers isolate the filesystem and do not permit reading absolute paths from dropped files. Testing inside Electron provides full operating system filesystem integration via `webUtils.getPathForFile`:
+
 ```bash
 # Navigate to desktop-wrapper
 cd desktop-wrapper
 npm install
 
-# Run desktop app in development mode
+# Option A (Live Dev): If ./gradlew bootRun is already running, this attaches immediately:
+npm run start
+
+# Option B (Standalone): Spawn backend JAR automatically:
+# (First run `./gradlew build` in repository root, then launch Electron):
 npm run start
 
 # Package desktop installer for current platform
@@ -69,7 +75,7 @@ npm run dist
 npm run dist:all
 ```
 
-For more details, see [CONTRIBUTING.md](CONTRIBUTING.md#building-production-packages).
+For more details, see [CONTRIBUTING.md](CONTRIBUTING.md#3-desktop-wrapper-electron-setup--local-testing).
 
 ## Development
 
