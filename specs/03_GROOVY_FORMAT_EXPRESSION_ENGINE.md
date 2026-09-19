@@ -183,3 +183,43 @@ export interface FormatEvaluationResult {
    - Displayed when user format expression throws a Groovy runtime exception (e.g. `NullPointerException`, missing method) or attempts restricted operations (file writing, system exec calls).
 2. **Preset Manager Modal:**
    - Allows users to save, edit, and delete custom format expression presets stored in system preferences.
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/02_03_rename_format_audit.md` (gaps RF-09/RF-10/RF-11/RF-15,
+same file covers both specs 02 and 03 since the legacy source and React components
+are shared between Rename and Format).
+
+- **RF-15 (BROKEN_FUNCTIONALITY):** `FormatExpressionEngineServiceImpl
+  .getAvailableBindings()` returns a **hardcoded 8-item list** regardless of the
+  `filePath`/`metadataContext` arguments passed in (both accepted but unused). This
+  spec's own §A binding catalog (13 entries) already under-documents the real
+  `net.filebot.format.MediaBindingBean` (1128 lines, dozens of bindings — season/
+  episode components, absolute numbering, air dates, series ids, xattr, and more).
+  **New requirement:** replace the hardcoded list with reflective introspection of
+  `MediaBindingBean`'s public getters; the legacy `FormatDialog`/`BindingDialog`
+  resource bundles likely already enumerate the canonical catalog and per-mode
+  example expressions — locate and reuse rather than hand-author a new list.
+- **RF-10 (COSMETIC/MINOR but extensive):** `FormatEditorModal.tsx` is a simplified
+  reimplementation, not a port, of `FormatDialog.java`: no independent per-type
+  (Episode/Movie/Music/File) persisted format history, no Groovy syntax highlighting
+  (`FormatExpressionTextArea`/`FormatExpressionTokenMaker` unported), no "Change
+  Sample" object picker, no folder browser, no recent-format popup. Not all of this
+  needs to ship immediately, but should be tracked explicitly rather than assumed
+  covered by the current single-mode text-input modal.
+- **RF-11 (BROKEN_FUNCTIONALITY):** this document's §D "Preset Manager Modal" has
+  **zero implementation anywhere** — no React component, no backend controller or
+  service, confirmed via full-codebase grep. `PresetEditor.java`/`Preset.java` are
+  the direct, plain-Java port targets (full CRUD: name, input folder or "use
+  selection", include-filter expression, format expression, datasource, sort order,
+  language, match mode, rename action — applied via popup or number keys 1-9 in
+  legacy).
+- **Ambiguous (needs product decision, not to be guessed at):** whether the target
+  design is "one global format expression shared across content types" (current
+  implementation) or "four independently-persisted per-type expressions applied
+  automatically by the runtime type of the matched object" (legacy's actual
+  behavior, and what `AppSettingsDto`'s existing `tvFormat`/`movieFormat`/
+  `musicFormat`/`animeFormat` fields suggest was intended, but which nothing in the
+  Rename workspace currently reads — see specs/09 addendum SET-13).

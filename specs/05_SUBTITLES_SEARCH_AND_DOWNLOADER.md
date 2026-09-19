@@ -167,3 +167,43 @@ export interface SubtitlePanelState {
    - Prompted when OpenSubtitles requires VIP / user login credentials.
 2. **Subtitle Upload Modal (`SubtitleUploadDialog`):**
    - Form fields: Video file selection, Subtitle file selection, Movie/Series search query (IMDb ID), Language selector.
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/05_subtitles_audit.md`. **This entire feature area is
+fabricated end-to-end** — the only genuinely working piece is the hash computation.
+
+- **G1/G2/G3 (BROKEN_FUNCTIONALITY/DATA_INTEGRITY_RISK):**
+  `SubtitleServiceImpl.searchSubtitles()` never calls `OpenSubtitlesClient`/
+  `OpenSubtitlesXmlRpc` or `ShooterSubtitles` — it fabricates one descriptor per
+  input file (`filename+".srt"`, a fake `subtitles.filebot.net` URL, hardcoded
+  `score=0.90`). The "Exact Search"/"Fuzzy Search" buttons are also **mismapped**:
+  legacy's Exact=hash-based/Fuzzy=name-based distinction is real
+  (`SubtitleUtilities.lookupSubtitlesByHash`/`.findSubtitlesByName`, running in
+  parallel against one account); the port instead maps them to a
+  `OPEN_SUBTITLES`/`SHOOTER` provider switch that the backend then ignores anyway.
+- **G4 (DATA_INTEGRITY_RISK):** `downloadSubtitles()` performs **no I/O of any
+  kind** — string-replaces the extension to `.srt` and unconditionally reports
+  success. The success toast the user sees is always false.
+- **G6/G7 (BROKEN_FUNCTIONALITY):** the Subtitle Upload Modal described above does
+  not exist anywhere in React, and `SubtitleServiceImpl.uploadSubtitle()` is a
+  literal no-op comment. The OpenSubtitles login/VIP-quota modal (spec §A) also has
+  no React equivalent.
+- **G12 (DATA_INTEGRITY_RISK, structural):** the wire contract itself
+  (`SubtitleSearchRequestDto` → flat `List<SubtitleDescriptorDto>`) has **no
+  per-video association field**, making it structurally impossible for the frontend
+  to correctly attribute multiple real candidates to the correct video once real
+  search is implemented (a real provider can return 0, 1, or many results per
+  video). **New requirement:** add a `videoFilePath` field to
+  `SubtitleDescriptorDto` before implementing real search, not after.
+- **New requirement — primary reuse targets for a real implementation:**
+  `net.filebot.subtitle.SubtitleUtilities.{lookupSubtitlesByHash,findSubtitlesByName,
+  getBestMatch,matchSubtitles}` for the real Exact/Fuzzy strategies;
+  `net.filebot.web.{OpenSubtitlesClient,ShooterSubtitles,VideoHashSubtitleService}`
+  for provider access; `net.filebot.subtitle.SubtitleNaming.format(...)` for correct
+  output filenames (currently the "Subtitle Naming" dropdown in §C is 100%
+  cosmetic — its selected value is never even sent to the backend).
+- Full gap table (G1-G12, including the 4-of-16-languages regression and the
+  provider-mismatch-on-download latent bug) is in the audit file.

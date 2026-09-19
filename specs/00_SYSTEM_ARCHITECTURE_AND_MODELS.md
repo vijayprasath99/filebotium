@@ -431,3 +431,44 @@ public class AsyncConfig {
 2. **Persistence Architecture:**
    - **Preferences:** Utilizes Spring Boot configuration properties backed by Java Preferences API / local `.properties` store (`FilePreferences`).
    - **History Logs:** XML/JSON spool files saved under standard system user application folders (`~/.filebot/history.xml`).
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+A comprehensive parity audit (`specs/audit/MASTER_AUDIT_REPORT.md` and
+`specs/audit/00_CROSSCUTTING_FINDINGS.md`) found that the architecture described
+above is **not currently realized by the implementation** in two foundational,
+cross-cutting ways that every other spec's WebSocket/DTO sections depend on:
+
+1. **§4/§5 (STOMP/WebSocket real-time delivery) is entirely non-functional.**
+   `src/main/java/net/filebot/backend/websocket/TaskProgressPublisher.java`'s
+   `publishRenameProgress(...)`/`publishSfvProgress(...)` methods only append to a
+   private in-memory list and are never called anywhere in the backend; no
+   `SimpMessagingTemplate`/`.convertAndSend(...)` exists anywhere in
+   `net.filebot.backend`. The broker itself is correctly configured
+   (`WebSocketConfig`), and the frontend correctly subscribes — but nothing
+   server-side ever publishes to `/topic/rename/progress`, `/topic/sfv/progress`, or
+   `/topic/notifications`. Every real-time progress UI described in this spec and in
+   specs 02/06 is non-functional today. See `00_CROSSCUTTING_FINDINGS.md` §X1 for
+   full detail and the required fix (inject `SimpMessagingTemplate`, call it from
+   inside the actual per-file loops of the real hashing/matching implementations once
+   those exist — see specs 02/06 addenda).
+2. **The `AppShellService` interface documented in §6/specs-01 §B does not exist.**
+   `AppShellController` inlines all file-intake logic itself rather than delegating to
+   a service, and the intake logic itself ignores `recursive`/`filterHidden` entirely
+   — see `specs/01_APP_SHELL_NAVIGATION_AND_GLOBAL_DND.md`'s own addendum and
+   `00_CROSSCUTTING_FINDINGS.md` §X2.
+
+**Corrective note on domain enums:** `ConflictStrategy.AUTO_RENAME` (line 62) has
+**no identifiable legacy precedent** anywhere in `net.filebot.ui.rename` or
+`net.filebot.StandardRenameAction` — the real legacy app offers only two conflict
+resolutions (skip, or trash-and-overwrite). Confirm intent with the product owner
+before implementing "append a numeric counter" behavior as if it were a ported
+feature; see `specs/audit/02_03_rename_format_audit.md` Ambiguous item AMB-1.
+
+**Terminology correction (applies to all specs 00-10):** the legacy application's UI
+is **Java Swing** (`javax.swing.*`), not JavaFX, with a single embedded JavaFX
+`WebView` island (`GettingStartedStage.java`) for the onboarding screen only. Every
+"JavaFX" reference throughout these specs should be read as referring to the Swing
+codebase (`net.filebot.ui.*`) unless explicitly noted otherwise.

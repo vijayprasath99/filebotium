@@ -125,3 +125,52 @@ export interface ProviderCredential {
    - Warns user before purging local HTTP and metadata response caches.
 2. **Invalid API Key Warning Toast:**
    - Triggered when provider API authentication fails during credential validation check.
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/09_settings_audit.md` (gaps re-prefixed `SET-` here to
+avoid collision with other areas' `S-`/`G`-prefixed IDs; original file uses bare
+`S-#`).
+
+- **SET-1/SET-2/SET-3 (DATA_INTEGRITY_RISK):** `SettingsServiceImpl` persists under
+  the **wrong Preferences node and wrong keys** versus legacy (`format.tv` vs.
+  legacy's `rename.format.episode` under a different node entirely) — a real user's
+  existing legacy preferences would never surface in the new Settings screen. It
+  also uses raw `java.util.prefs.Preferences` instead of legacy's portable
+  `FilePreferencesFactory`, falling back to the OS registry/plist rather than a
+  flat, cross-platform-consistent file. **New requirement:** reuse
+  `net.filebot.util.prefs.{FilePreferencesFactory,PropertyFileBackingStore,
+  FilePreferences}` verbatim (three small, zero-dependency classes), and match
+  legacy's exact node/key paths via `Settings.forPackage(Class).entry(String)`.
+- **SET-6 (BROKEN_FUNCTIONALITY, likely a live bug):**
+  `SettingsPanel.tsx:275` hardcodes `value="TVMAZE"` where the `ProviderType` union
+  requires `'TV_MAZE'` — a type mismatch. Also only 5 of 8 `ProviderType` values are
+  offered (missing OMDB, ACOUSTID, SHOOTER).
+- **SET-7 (DATA_INTEGRITY_RISK):** provider credentials are stored in
+  **plaintext**, directly contradicting this spec's own §B claim of "(encrypted in
+  persistence layer)." No existing reusable encryption utility was found in
+  `net.filebot` (`net.filebot.util.PGP` is signature-verification only, not
+  applicable) — this needs new design (e.g. Electron `safeStorage`), not a direct
+  port.
+- **SET-13 (BROKEN_FUNCTIONALITY):** `AppShell.tsx` hardcodes a single global
+  format expression and **never calls `settingsApi.getSettings()`** — none of the
+  four saved format presets configured in this panel ever reach the Rename
+  workspace. The Format Presets tab is functionally inert. Ties to specs/03
+  addendum's per-type-format ambiguity — resolve both together.
+- **Spec-accuracy flags needing product confirmation, not assumed either way:**
+  §D's "Clear Application Cache Confirmation Modal" appears to conflate two
+  unrelated legacy behaviors (an undiscoverable prefs-reset, and `MainFrame`'s
+  separate confirmation-less `Ctrl+Shift+Delete` shortcut) — and critically, **no
+  cache-clear endpoint exists anywhere in the port**, so the one legacy behavior
+  that demonstrably exists today is entirely missing. `ui.theme`/`ui.language`
+  preferences claimed in §A were not located anywhere in the audited legacy
+  preference files. The full `License.java`/`LicenseModel.java` (277 lines
+  combined) license-activation subsystem has zero port coverage and needs an
+  explicit in/out-of-scope decision before being treated as a gap. Provider API
+  keys are maintainer-baked into `application.properties` in legacy, not
+  user-editable at all — confirm whether this spec's entire "Provider Credentials"
+  UI is a deliberate, reasonable product improvement or solving a problem that
+  didn't exist in the legacy UX model.
+- Full gap table (S-1 through S-14) is in the audit file.

@@ -157,3 +157,44 @@ export interface SfvPanelState {
    - Highlights files in red whose calculated hash does not match expected SFV checksum.
 2. **Missing Files Warning Modal:**
    - Displays files listed in imported `.sfv` file that were not found in local target directory.
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/06_sfv_audit.md`. **No file is ever actually hashed by this
+feature today — it is a checksum verification tool that cannot detect mismatches,**
+which is more dangerous than a missing feature because it actively reports false
+"OK" verdicts.
+
+- **GAP-01/GAP-06 (BROKEN_FUNCTIONALITY, top priority):**
+  `ChecksumServiceImpl.startVerificationTask()` is `return
+  UUID.randomUUID().toString();` — no CRC32/MessageDigest, no file I/O, nothing.
+  Zero hash-computation code of any kind exists anywhere in the backend.
+- **GAP-02 (DATA_INTEGRITY_RISK, critical):** `SfvPanel.tsx`'s `handleVerify` waits
+  1200ms after the fake taskId, then **fabricates the result client-side**: any
+  entry with a known `expectedHash` is forced to report `OK` by construction; any
+  entry without one gets a **random hex string** as its "calculated hash." A real
+  file mismatch, corruption, or wrong file can never be detected through this code
+  path. **This must be fixed before this feature ships to any user relying on it for
+  data integrity verification.**
+- **GAP-07/GAP-08 (BROKEN_FUNCTIONALITY/DATA_INTEGRITY_RISK):** verification-file
+  parsing hardcodes `SfvFormat()` (8-hex CRC32 only) regardless of the file's real
+  extension — loading a `.md5`/`.sha1`/`.sha256` file silently returns zero entries.
+  Export similarly hand-builds SFV-shaped `"path hash"` lines for every hash type,
+  producing MD5/SHA1/SHA256 files unreadable by standard tools (`md5sum -c` etc.) or
+  even by FileBot's own legacy parser.
+- **GAP-03/GAP-04/GAP-05 (BROKEN_FUNCTIONALITY):** none of §C's progress-header UI
+  (SpeedGauge/TotalProgressBar/ETAIndicator) exists in the React tree at all — not
+  even unwired markup — and the backend has no concurrency primitive of any kind
+  (the documented `hashingExecutor` bean from specs/00 is never declared/used); ties
+  to specs/00 addendum §X1 (dead `TaskProgressPublisher`).
+- **New requirement — primary reuse targets:** `net.filebot.hash.{HashType.newHash(),
+  ChecksumHash,MessageDigestHash}` for real hashing;
+  `net.filebot.util.FileUtilities.BUFFER_SIZE` (64KB, confirmed) for chunked reads;
+  `net.filebot.hash.VerificationUtilities.getHashType(File)` for correct
+  per-extension format dispatch; `net.filebot.hash.{VerificationFileWriter,
+  VerificationFormat,SfvFormat}` for byte-correct export.
+- Full gap table (GAP-01 through GAP-12, including the missing `WARNING` status for
+  filename-embedded-checksum mismatches and the yellow-vs-grey MISSING color
+  discrepancy) is in the audit file.

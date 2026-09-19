@@ -154,3 +154,44 @@ export interface EpisodesExplorerState {
    - Displays candidate series when search query returns multiple matches.
 2. **Rate Limit / API Quota Warning Modal:**
    - Alerts user when provider requests fail due to HTTP 429 / rate limits.
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/04_episodes_audit.md`. **This is the best-wired area in the
+whole application audit** — `EpisodeFetcherServiceImpl` genuinely calls the real
+`TheTVDBClient`/`TMDbTVClient`/`AnidbClient`/`TVMazeClient` provider classes, unlike
+the fabricated/stubbed backends found in Rename, Subtitles, and SFV. It is still
+broken in production, but by narrow, cheap-to-fix bugs rather than missing
+implementation:
+
+- **EP-01 (BROKEN_FUNCTIONALITY, top priority in this document):**
+  `EpisodeFetcherServiceImpl.getProvider()` constructs every provider client with
+  the **literal placeholder string `"test-key"`**, never reading real keys from
+  `net.filebot.WebServices`. Failed auth is silently swallowed
+  (`catch(Exception e){return emptyList();}`), so every search just shows "No TV
+  series found." **New requirement:** replace the manual `new XyzClient("test-key")`
+  construction with `net.filebot.WebServices`'s pre-wired singletons
+  (`WebServices.TheTVDB`, `WebServices.TheMovieDB`, `WebServices.AniDB`) exactly as
+  `EpisodeListPanel.java:103-105`'s `WebServices.getEpisodeListProviders()` does.
+  One-line-per-provider fix, not a rewrite.
+- **EP-02 (BROKEN_FUNCTIONALITY):** both `searchSeries()` and `getEpisodes()`
+  hardcode `Locale.ENGLISH`, ignoring the (correctly transport-wired)
+  `request.language()` field entirely — non-English users always get English
+  results.
+- **EP-04 (BROKEN_FUNCTIONALITY):** the legacy right-click "Send to → Rename/List"
+  context menu (arguably the primary reason to use this panel — browse episodes,
+  then push them into the Rename matching engine) has **zero React implementation**.
+  Episodes Explorer and Rename Workspace are fully isolated from each other today.
+  Fix should mirror the already-working Analyze-panel "Send to" pattern
+  (`AppShell.tsx`'s `onNavigateTab`/`droppedFiles` lifting).
+- **§A "Format Expression Preview bar" / §C `FormatPreviewFooter` — spec
+  correction, not an implementation gap:** no such feature exists anywhere in the
+  legacy 314-line `EpisodeListPanel.java` source. Recommend removing this from the
+  spec rather than treating its absence in React as a defect.
+- Minor gaps (season-spinner keyboard shortcuts, provider season-support gating,
+  autocomplete history sourced from session state instead of the bundled release-info
+  index, missing year field in disambiguation results) are cataloged in the audit
+  file with exact citations; none block core functionality once EP-01/EP-02/EP-04
+  are fixed.

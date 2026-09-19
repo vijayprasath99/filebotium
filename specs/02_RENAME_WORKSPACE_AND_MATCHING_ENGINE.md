@@ -208,3 +208,52 @@ export interface MatchTableProps {
    - Warns when target formatted path contains illegal OS characters (`:`, `*`, `?`, `"`, `<`, `>`, `|` on Windows).
 3. **Disambiguation / Multi-Choice Series Modal:**
    - Triggered when provider search returns multiple matching series (e.g., "The Office (US)" vs "The Office (UK)").
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/02_03_rename_format_audit.md`. **This is the single most
+severe area in the entire application audit** — the app's core value proposition
+(auto-matching files against online metadata) does not function.
+
+- **RF-01 (BROKEN_FUNCTIONALITY, top priority of the entire audit):**
+  `RenameWorkspaceServiceImpl.autoMatch()` never queries any metadata provider. Every
+  match gets `targetMetadata=null` and a **hardcoded score of 0.85**; the
+  `provider`/`mode`/`language` request fields are read but never used. **New
+  requirement, superseding the current `autoMatch()` implementation:** port
+  `net.filebot.similarity.Matcher`+`EpisodeMetrics().matchFileSequence()` and the
+  per-mode matchers (`EpisodeListMatcher`/`MovieMatcher`/`MusicMatcher`/
+  `AutoDetectMatcher`) together with `net.filebot.WebServices`'s real provider
+  singletons — plain Java, not Swing-coupled, directly callable from the service
+  layer.
+- **RF-02 (BROKEN_FUNCTIONALITY, direct consequence of RF-01):** format expressions
+  can never resolve real series/movie metadata because no match ever carries any.
+- **RF-03 (DATA_INTEGRITY_RISK):** `executeRename()` performs real file moves (good,
+  correctly reuses `StandardRenameAction`) but **never writes to history** —
+  `net.filebot.HistorySpooler.getInstance().append(...)` must be called after every
+  successful batch, mirroring `CmdlineOperations.writeHistory()` including its
+  `action.canRevert()` gate. Without this, Undo/Rollback (spec 08) is permanently
+  unavailable for every rename performed through this workspace.
+- **RF-04 (DATA_INTEGRITY_RISK):** the documented Conflict Dialog / Validate Dialog
+  (§D above) do not exist in the React port; `conflictStrategy` is hardcoded to
+  `'OVERWRITE'` client-side and **ignored entirely** server-side
+  (`executeRename()` never reads `request.conflictStrategy()`).
+- **Spec correction — `ConflictStrategy.AUTO_RENAME` (§B enum, also specs/00):** no
+  legacy precedent exists for a numeric-counter auto-rename conflict resolution
+  anywhere in `ConflictDialog`/`ValidateDialog`/`StandardRenameAction`. The only two
+  real legacy resolutions are skip and trash-then-overwrite. Confirm intent with the
+  product owner before building an "(1), (2), ..." counter scheme as if it were
+  ported behavior.
+- **RF-05/RF-16:** two components exist that implement real functionality
+  (`MatchTable.tsx`'s per-row exclude, `BindingPicker.tsx`) but are **never imported
+  by anything actually rendered** — dead/orphaned code, not user-visible gaps, but a
+  sign of duplicated effort worth consolidating.
+- **RF-11 (BROKEN_FUNCTIONALITY):** the Preset Manager Modal required by
+  `specs/03` §D does not exist at all, on either the frontend or backend
+  (`PresetEditor.java`/`Preset.java` have zero port coverage) — one of the largest
+  single feature omissions found in the whole audit.
+- Full gap table (RF-01 through RF-17, including keyboard-shortcut gaps F2/F7,
+  per-type format persistence, and the "Open History" toolbar entry point) is in the
+  audit file; do not re-derive it, reference it directly when scoping implementation
+  tickets.

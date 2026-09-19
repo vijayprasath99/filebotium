@@ -157,3 +157,47 @@ export interface AnalyzePanelState {
    - Displays alert if `libmediainfo` is not installed or fail-over Java FFProbe parser is active.
 2. **Batch Metadata Export Dialog:**
    - Export analyzed folder metadata to JSON or CSV.
+
+---
+
+## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+
+Full detail: `specs/audit/07_analyze_audit.md`. The MediaInfo tab itself is genuinely
+well-implemented (real native `libmediainfo` JNA binding, not a stub — confirmed via
+`build.gradle`'s `jna`/`jna-platform` dependencies); the other four tool tabs are not.
+
+- **AN-1/AN-2/AN-3/AN-4 (BROKEN_FUNCTIONALITY):** the "Archives", "Parts",
+  "Attributes", and "Types" tabs are **entirely client-side facades with zero
+  backend method behind any of them** — `MediaInfoInspectorService` (the only
+  Analyze-domain service) has no archive-listing, split/bin-packing, xattr, or
+  content-classification method at all. Each tab instead does a shallow
+  regex/string operation on the filename (e.g. "Types" groups by extension string
+  with a fake `size` field that is literally the text `"N file(s)"`, not a byte
+  count). **New requirement:** these are real, separate backend capabilities that
+  need to be built, not wired — see reuse targets below.
+- **AN-5 (BROKEN_FUNCTIONALITY):** "Reveal"/"Reveal Folder" context menu items are
+  fully dangling no-ops (only show a text banner); no Electron IPC bridge for
+  OS-file-manager integration exists in `desktop-wrapper/preload.js` (only
+  `getPath` is exposed) — a new IPC channel is required to make this possible at
+  all.
+- **AN-8/AN-9 (DATA_INTEGRITY_RISK):** `MediaInfoInspectorServiceImpl` reads the
+  wrong MediaInfo key for HDR detection (`colour_primaries` instead of
+  `HDR_Format`/`HDR_Format_Compatibility`), producing spurious HDR badges on
+  ordinary wide-gamut SDR content; and the purpose-built `MediaInfoException`
+  (native-library-missing diagnostic) is swallowed by a generic `catch(Exception e)`
+  before it can surface §D's "Missing Native Library Warning" to the user.
+- **AN-12 (BROKEN_FUNCTIONALITY, compounds specs/01/08's List/History
+  mislabeling):** "Send to → List" correctly computes the target files and calls
+  `onNavigateTab('LIST', files)`, but `AppShell.tsx` renders `HistoryPanel` (which
+  accepts no `files` prop) for the `'LIST'` tab — the files are silently discarded.
+- **§A "Filter / Search Bar" — spec correction, not an implementation gap:** no
+  such control exists anywhere in the legacy `FilterPanel`/`FileTreePanel`/`FileTree`
+  source; both the spec and the implementation's shared absence of it is not a
+  defect.
+- **New requirement — primary reuse targets:** `net.filebot.archive.{Archive,
+  FileMapper}` for AN-1; the bin-packing loop in `SplitTool.createModelInBackground`
+  for AN-2 (plain `File`/`long` arithmetic, portable verbatim);
+  `net.filebot.media.{XattrMetaInfo,MetaAttributes}`/`net.filebot.MetaAttributeView`
+  for AN-3; `net.filebot.media.MediaDetection.{isMovie,isEpisode,
+  getDiskFolderFilter,getClutterFileFilter}` for AN-4.
+- Full gap table (AN-1 through AN-13) is in the audit file.
