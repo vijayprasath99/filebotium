@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 import net.filebot.media.ImageMetadata;
 import net.filebot.media.MediaCharacteristics;
 
-public class MediaInfo implements MediaCharacteristics {
+public class MediaInfo implements MediaCharacteristics, AutoCloseable {
 
   private Pointer handle;
   private Cleaner.Cleanable cleanable;
