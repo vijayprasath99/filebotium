@@ -10,8 +10,11 @@ import {
   MinusCircle,
   ArrowRight,
   FolderOpen,
+  Eye,
+  Save,
+  X,
 } from 'lucide-react';
-import { SubtitleDescriptor, LanguageCode, SubtitleProviderType } from '../types';
+import { SubtitleDescriptor, LanguageCode } from '../types';
 import { subtitleApi, appApi } from '../api/client';
 import { getFilePaths } from '../utils/fileUtils';
 
@@ -22,6 +25,7 @@ interface SubtitleRow {
   expanded?: boolean;
   selectedCandidateIdx?: number;
   descriptor?: SubtitleDescriptor;
+  downloadedPath?: string;
 }
 
 interface SubtitlePanelProps {
@@ -31,11 +35,53 @@ interface SubtitlePanelProps {
 export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
   const [rows, setRows] = useState<SubtitleRow[]>([]);
   const [language, setLanguage] = useState<LanguageCode>('EN');
-  const [namingFormat, setNamingFormat] = useState('Match Video and Language');
+  const [namingFormat, setNamingFormat] = useState<
+    'ORIGINAL' | 'MATCH_VIDEO' | 'MATCH_VIDEO_ADD_LANGUAGE_TAG'
+  >('MATCH_VIDEO_ADD_LANGUAGE_TAG');
   const [isSearching, setIsSearching] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; kind: 'info' | 'success' | 'error' } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; row: SubtitleRow } | null>(null);
+  const [previewContent, setPreviewContent] = useState<{ path: string; text: string } | null>(null);
+
+  const handleRowContextMenu = (e: React.MouseEvent, row: SubtitleRow) => {
+    if (!row.downloadedPath) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, row });
+  };
+
+  const handlePreview = async () => {
+    const path = contextMenu?.row.downloadedPath;
+    setContextMenu(null);
+    if (!path) return;
+    try {
+      const text = await subtitleApi.readContent(path);
+      setPreviewContent({ path, text: text || '(empty file)' });
+    } catch {
+      showStatus('Failed to read subtitle file.', 'error');
+    }
+  };
+
+  const handleSaveAs = async () => {
+    const path = contextMenu?.row.downloadedPath;
+    setContextMenu(null);
+    if (!path) return;
+    try {
+      const text = await subtitleApi.readContent(path);
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = path.split(/[/\\]/).pop() || 'subtitle.srt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      showStatus('Failed to export subtitle file.', 'error');
+    }
+  };
 
   const showStatus = (text: string, kind: 'info' | 'success' | 'error' = 'info') => {
     setStatusMsg({ text, kind });
@@ -88,7 +134,8 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
       const rawPaths = getFilePaths(e.target.files);
       try {
         const ingested = await appApi.intakeFiles(rawPaths, 'SUBTITLES');
-        const pathsToAdd = ingested && ingested.length > 0 ? ingested.map((f) => f.path) : rawPaths;
+        const pathsToAdd =
+          ingested?.acceptedFiles?.length > 0 ? ingested.acceptedFiles.map((f) => f.path) : rawPaths;
         setRows((prev) => [
           ...prev,
           ...pathsToAdd.map((p) => ({ video: p, matchedSubtitle: null })),
@@ -112,19 +159,29 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
     setIsSearching(true);
     const videoPaths = rows.map((r) => r.video);
     try {
-      const provider: SubtitleProviderType = isFuzzy ? 'SHOOTER' : 'OPEN_SUBTITLES';
-      const results = await subtitleApi.searchSubtitles(videoPaths, language, provider);
+      const results = await subtitleApi.searchSubtitles(
+        videoPaths,
+        language,
+        'OPEN_SUBTITLES',
+        isFuzzy ? 'FUZZY' : 'EXACT'
+      );
+      const resultsByVideo = new Map<string, SubtitleDescriptor[]>();
+      results.forEach((r) => {
+        const list = resultsByVideo.get(r.videoFilePath) ?? [];
+        list.push(r);
+        resultsByVideo.set(r.videoFilePath, list);
+      });
+
       setRows((prev) =>
-        prev.map((row, idx) => {
-          const match = results[idx] || (results.length > 0 ? results[0] : null);
-          if (match) {
-            const ext = match.name;
-            const altCand = match.name.replace(/\.srt$/i, `.${language.toLowerCase()}.srt`);
+        prev.map((row) => {
+          const candidates = resultsByVideo.get(row.video);
+          if (candidates && candidates.length > 0) {
+            const best = candidates[0];
             return {
               ...row,
-              matchedSubtitle: ext,
-              candidates: [ext, altCand],
-              descriptor: match,
+              matchedSubtitle: best.name,
+              candidates: candidates.map((c) => c.name),
+              descriptor: best,
             };
           }
           return row;
@@ -153,14 +210,26 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
       const requests = matchedRows.map((r) => ({
         videoFilePath: r.video,
         subtitleId: r.descriptor?.id || 'sub-default',
-        provider: 'OPEN_SUBTITLES' as const,
+        provider: r.descriptor?.provider ?? ('OPEN_SUBTITLES' as const),
         targetFormat: 'SRT' as const,
+        namingStrategy: namingFormat,
       }));
       const res = await subtitleApi.downloadSubtitles(requests);
       showStatus(
         `Downloaded ${res.successCount} subtitle(s). Saved: ${res.downloadedSubtitlePaths.join(', ')}`,
         'success'
       );
+
+      // downloadedSubtitlePaths only lists successful downloads, in request order - only safe
+      // to zip 1:1 back onto rows when every request in this batch succeeded.
+      if (res.successCount === matchedRows.length) {
+        const pathByVideo = new Map(matchedRows.map((r, i) => [r.video, res.downloadedSubtitlePaths[i]]));
+        setRows((prev) =>
+          prev.map((row) =>
+            pathByVideo.has(row.video) ? { ...row, downloadedPath: pathByVideo.get(row.video) } : row
+          )
+        );
+      }
     } catch (err) {
       console.error('Failed to download subtitles:', err);
       showStatus('Failed to download subtitles.', 'error');
@@ -222,7 +291,10 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
                   </div>
 
                   {/* Right: Subtitle */}
-                  <div className="flex items-center justify-between pl-3 border-l border-[#f0f0f0] min-w-0">
+                  <div
+                    onContextMenu={(e) => handleRowContextMenu(e, row)}
+                    className="flex items-center justify-between pl-3 border-l border-[#f0f0f0] min-w-0"
+                  >
                     {row.matchedSubtitle ? (
                       <div
                         onClick={() => row.candidates && toggleRowExpanded(idx)}
@@ -339,6 +411,18 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
               <option value="DE">German (DE)</option>
               <option value="FR">French (FR)</option>
               <option value="ES">Spanish (ES)</option>
+              <option value="IT">Italian (IT)</option>
+              <option value="JA">Japanese (JA)</option>
+              <option value="ZH">Chinese (ZH)</option>
+              <option value="KO">Korean (KO)</option>
+              <option value="RU">Russian (RU)</option>
+              <option value="PT">Portuguese (PT)</option>
+              <option value="NL">Dutch (NL)</option>
+              <option value="SV">Swedish (SV)</option>
+              <option value="NO">Norwegian (NO)</option>
+              <option value="DA">Danish (DA)</option>
+              <option value="FI">Finnish (FI)</option>
+              <option value="PL">Polish (PL)</option>
             </select>
           </div>
 
@@ -348,12 +432,12 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
             </span>
             <select
               value={namingFormat}
-              onChange={(e) => setNamingFormat(e.target.value)}
+              onChange={(e) => setNamingFormat(e.target.value as typeof namingFormat)}
               className="bg-transparent text-[11px] text-[#222222] outline-none cursor-pointer"
             >
-              <option value="Match Video and Language">Match Video and Language ▾</option>
-              <option value="Original Subtitle Name">Original Subtitle Name ▾</option>
-              <option value="Language Code Only">Language Code Only ▾</option>
+              <option value="MATCH_VIDEO_ADD_LANGUAGE_TAG">Match Video and Language ▾</option>
+              <option value="ORIGINAL">Original Subtitle Name ▾</option>
+              <option value="MATCH_VIDEO">Match Video ▾</option>
             </select>
           </div>
 
@@ -375,6 +459,51 @@ export const SubtitlePanel: React.FC<SubtitlePanelProps> = ({ files }) => {
           </button>
         </div>
       </div>
+
+      {/* Downloaded Subtitle Context Menu (G8: Preview / Save As) */}
+      {contextMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} />
+          <div
+            className="fixed z-50 bg-white border border-[#b8b8b8] rounded-[4px] shadow-lg py-1 w-40 text-[12px] font-sans text-[#222222]"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+          >
+            <button
+              onClick={handlePreview}
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#eaf2fc] text-left"
+            >
+              <Eye className="w-3.5 h-3.5 text-blue-500" />
+              Preview
+            </button>
+            <button
+              onClick={handleSaveAs}
+              className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#eaf2fc] text-left"
+            >
+              <Save className="w-3.5 h-3.5 text-emerald-600" />
+              Save As / Export
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Preview Modal */}
+      {previewContent && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl max-h-[80vh] bg-white border border-slate-300 rounded-lg shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-4 py-2 bg-slate-100 border-b border-slate-300 flex items-center justify-between shrink-0">
+              <span className="text-xs font-semibold text-slate-700 truncate" title={previewContent.path}>
+                {previewContent.path.split(/[/\\]/).pop()}
+              </span>
+              <button onClick={() => setPreviewContent(null)} className="text-slate-500 hover:text-slate-800">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto p-4 text-xs font-mono whitespace-pre-wrap text-slate-800">
+              {previewContent.text}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

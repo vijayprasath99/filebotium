@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { HistoryTransaction } from '../types';
 import { historyApi } from '../api/client';
-import { History, RotateCcw, Download, Trash2, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { History, RotateCcw, Download, Trash2, RefreshCw, AlertCircle, CheckCircle2, Search } from 'lucide-react';
 
 export const HistoryPanel: React.FC = () => {
   const [transactions, setTransactions] = useState<HistoryTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [rollingBackId, setRollingBackId] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState('');
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
@@ -27,6 +28,10 @@ export const HistoryPanel: React.FC = () => {
   }, [loadHistory]);
 
   const handleRollbackRow = async (transactionId: string, targetPath: string) => {
+    const fileName = targetPath.replace(/^.*[\\/]/, '');
+    if (!window.confirm(`Undo rename and restore "${fileName}" to its original name/location?`)) {
+      return;
+    }
     setRollingBackId(`${transactionId}-${targetPath}`);
     setStatusMessage(`Rolling back: ${targetPath.replace(/^.*[\\/]/, '')}...`);
     try {
@@ -57,20 +62,7 @@ export const HistoryPanel: React.FC = () => {
 
   const handleExportHistory = async () => {
     try {
-      await historyApi.exportHistory('xml');
-
-      // Generate downloadable XML for browser
-      const xmlDoc = ['<?xml version="1.0" encoding="UTF-8"?>', '<history>'];
-      transactions.forEach((tx) => {
-        xmlDoc.push(`  <sequence date="${new Date(tx.timestamp).toISOString()}">`);
-        tx.elements.forEach((elem) => {
-          xmlDoc.push(`    <element from="${escapeXml(elem.sourcePath)}" to="${escapeXml(elem.targetPath)}" action="${elem.action}" />`);
-        });
-        xmlDoc.push('  </sequence>');
-      });
-      xmlDoc.push('</history>');
-
-      const blob = new Blob([xmlDoc.join('\n')], { type: 'application/xml;charset=utf-8' });
+      const blob = await historyApi.exportHistory('xml');
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -86,20 +78,16 @@ export const HistoryPanel: React.FC = () => {
     }
   };
 
-  const escapeXml = (unsafe: string): string => {
-    return unsafe.replace(/[<>&'"]/g, (c) => {
-      switch (c) {
-        case '<': return '&lt;';
-        case '>': return '&gt;';
-        case '&': return '&amp;';
-        case '\'': return '&apos;';
-        case '"': return '&quot;';
-        default: return c;
-      }
-    });
-  };
-
   const totalElements = transactions.reduce((acc, tx) => acc + tx.elements.length, 0);
+
+  // Multi-word AND filter across source/target paths, mirroring legacy HistoryDialog's
+  // filterEditor / HistoryFilter.include behavior (specs/audit/08_history_and_list_audit.md Gap 6).
+  const filterTerms = filterQuery.toLowerCase().split(/\s+/).filter(Boolean);
+  const matchesFilter = (sourcePath: string, targetPath: string): boolean => {
+    if (filterTerms.length === 0) return true;
+    const haystack = `${sourcePath} ${targetPath}`.toLowerCase();
+    return filterTerms.every((term) => haystack.includes(term));
+  };
 
   return (
     <div className="flex-1 p-6 flex flex-col gap-4 bg-slate-950 text-slate-100 overflow-hidden">
@@ -143,6 +131,26 @@ export const HistoryPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-lg border border-slate-800">
+        <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+        <input
+          type="text"
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          placeholder="Filter by source or target path (space-separated terms, all must match)..."
+          className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600"
+        />
+        {filterQuery && (
+          <button
+            onClick={() => setFilterQuery('')}
+            className="text-slate-500 hover:text-slate-300 text-[11px]"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
       {/* Status Bar */}
       {statusMessage && (
         <div className="text-xs bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 text-slate-300 flex items-center justify-between">
@@ -181,9 +189,19 @@ export const HistoryPanel: React.FC = () => {
                   </div>
                 </td>
               </tr>
+            ) : transactions.every((tx) =>
+                tx.elements.every((elem) => !matchesFilter(elem.sourcePath, elem.targetPath))
+              ) ? (
+              <tr>
+                <td colSpan={5} className="p-12 text-center text-slate-500">
+                  No history entries match "{filterQuery}".
+                </td>
+              </tr>
             ) : (
               transactions.flatMap((tx) =>
-                tx.elements.map((elem, idx) => {
+                tx.elements
+                  .filter((elem) => matchesFilter(elem.sourcePath, elem.targetPath))
+                  .map((elem, idx) => {
                   const isRolling = rollingBackId === `${tx.transactionId}-${elem.targetPath}`;
                   return (
                     <tr key={`${tx.transactionId}-${idx}`} className="hover:bg-slate-800/40 transition-colors">

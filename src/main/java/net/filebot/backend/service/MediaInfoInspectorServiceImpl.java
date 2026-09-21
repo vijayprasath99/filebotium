@@ -10,6 +10,7 @@ import net.filebot.backend.dto.SubtitleStreamDto;
 import net.filebot.backend.dto.VideoStreamDto;
 import net.filebot.mediainfo.MediaInfo;
 import net.filebot.mediainfo.MediaInfo.StreamKind;
+import net.filebot.mediainfo.MediaInfoException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -55,7 +56,10 @@ public class MediaInfoInspectorServiceImpl implements MediaInfoInspectorService 
         int height = parseInteger(mi.get(StreamKind.Video, i, "Height"));
         double fps = parseDouble(mi.get(StreamKind.Video, i, "FrameRate"));
         int bitDepth = parseInteger(mi.get(StreamKind.Video, i, "BitDepth"));
-        String hdr = mi.get(StreamKind.Video, i, "colour_primaries");
+        String hdr = mi.get(StreamKind.Video, i, "HDR_Format");
+        if (hdr == null || hdr.isBlank()) {
+          hdr = mi.get(StreamKind.Video, i, "HDR_Format_Compatibility");
+        }
 
         videoStreams.add(new VideoStreamDto(i, codec, width, height, fps, bitDepth, hdr));
       }
@@ -85,6 +89,9 @@ public class MediaInfoInspectorServiceImpl implements MediaInfoInspectorService 
 
       return new MediaInfoInspectorDto(
           filePath, container, duration, bitrate, videoStreams, audioStreams, subStreams);
+    } catch (MediaInfoException e) {
+      return new MediaInfoInspectorDto(
+          filePath, "NATIVE_LIBRARY_MISSING", 0, 0, List.of(), List.of(), List.of());
     } catch (Exception e) {
       return new MediaInfoInspectorDto(filePath, "UNKNOWN", 0, 0, List.of(), List.of(), List.of());
     }

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import net.filebot.Language;
 import net.filebot.backend.domain.EpisodeSortOrder;
 import net.filebot.backend.domain.LanguageCode;
 import net.filebot.backend.domain.ProviderType;
@@ -11,17 +12,13 @@ import net.filebot.backend.dto.EpisodeDto;
 import net.filebot.backend.dto.EpisodeFetchRequestDto;
 import net.filebot.backend.dto.SearchResultDto;
 import net.filebot.backend.dto.SeriesSearchRequestDto;
+import net.filebot.WebServices;
 import net.filebot.format.ExpressionFormat;
 import net.filebot.format.MediaBindingBean;
-import net.filebot.web.AnidbClient;
 import net.filebot.web.Episode;
 import net.filebot.web.EpisodeListProvider;
 import net.filebot.web.SearchResult;
 import net.filebot.web.SortOrder;
-import net.filebot.web.TMDbClient;
-import net.filebot.web.TMDbTVClient;
-import net.filebot.web.TVMazeClient;
-import net.filebot.web.TheTVDBClient;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -39,7 +36,7 @@ public class EpisodeFetcherServiceImpl implements EpisodeFetcherService {
     }
 
     try {
-      List<SearchResult> results = provider.search(request.query(), Locale.ENGLISH);
+      List<SearchResult> results = provider.search(request.query(), resolveLocale(request.language()));
       List<SearchResultDto> dtos = new ArrayList<>();
       for (SearchResult result : results) {
         dtos.add(
@@ -76,7 +73,8 @@ public class EpisodeFetcherServiceImpl implements EpisodeFetcherService {
 
       SearchResult searchResult =
           new SearchResult(request.seriesId(), "Series", Collections.emptyList());
-      List<Episode> episodes = provider.getEpisodeList(searchResult, sortOrder, Locale.ENGLISH);
+      List<Episode> episodes =
+          provider.getEpisodeList(searchResult, sortOrder, resolveLocale(request.language()));
 
       List<EpisodeDto> dtos = new ArrayList<>();
       for (Episode ep : episodes) {
@@ -142,13 +140,21 @@ public class EpisodeFetcherServiceImpl implements EpisodeFetcherService {
 
   private EpisodeListProvider getProvider(ProviderType type) {
     if (type == null) {
-      return new TheTVDBClient("test-key");
+      return WebServices.TheTVDB;
     }
     return switch (type) {
-      case THE_MOVIE_DB -> new TMDbTVClient(new TMDbClient("test-key", true));
-      case ANI_DB -> new AnidbClient("filebot", 6);
-      case TV_MAZE -> new TVMazeClient();
-      default -> new TheTVDBClient("test-key");
+      case THE_MOVIE_DB -> WebServices.TheMovieDB_TV;
+      case ANI_DB -> WebServices.AniDB;
+      case TV_MAZE -> WebServices.TVmaze;
+      default -> WebServices.TheTVDB;
     };
+  }
+
+  private Locale resolveLocale(LanguageCode language) {
+    if (language == null) {
+      return Locale.ENGLISH;
+    }
+    Language resolved = Language.getLanguage(language.name());
+    return resolved != null ? resolved.getLocale() : Locale.ENGLISH;
   }
 }

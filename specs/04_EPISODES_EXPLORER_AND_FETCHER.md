@@ -1,197 +1,207 @@
 # Episodes Explorer & Fetcher Specification
 
-## Section A: Legacy Codebase Analysis
-
-### Source Files Audited
-- `src/main/java/net/filebot/ui/episodelist/EpisodeListPanel.java`
-- `src/main/java/net/filebot/ui/episodelist/EpisodeListPanelBuilder.java`
-- `src/main/java/net/filebot/ui/episodelist/SeasonSpinnerEditor.java`
-- `src/main/java/net/filebot/ui/episodelist/SeasonSpinnerModel.java`
-- `src/main/java/net/filebot/ui/episodelist/EpisodeListExportHandler.java`
-- `src/main/java/net/filebot/web/EpisodeListProvider.java`
-- `src/main/java/net/filebot/web/AbstractEpisodeListProvider.java`
-- `src/main/java/net/filebot/web/TheTVDBClient.java`
-- `src/main/java/net/filebot/web/TMDbTVClient.java`
-- `src/main/java/net/filebot/web/AnidbClient.java`
-- `src/main/java/net/filebot/web/TVMazeClient.java`
-
-### UI Hierarchy & Layout Mechanics
-1. **Episodes Explorer Panel (`EpisodeListPanel`)**:
-   - Provider Selector: Dropdown allowing selection between TheTVDB, TMDb, AniDB, and TVMaze.
-   - Search Query Input: Text field for series title queries with auto-complete/history.
-   - Season Selector Spinner (`SeasonSpinnerEditor`): Numeric spinner to filter by specific season or view "All Seasons".
-   - Language Combobox (`LanguageComboBox`): Choice of episode language localization.
-   - Episode List Table (`JTable`): Columns for Season, Episode Number, Absolute Number, Title, Release Date, and Overview.
-   - Format Expression Preview bar: Formats selected episode rows according to current user format expression.
-   - Export Handler (`EpisodeListExportHandler`): Drag or save episode lists as text, CSV, or formatted file lists.
-
-### Extracted Business Logic & Data Fetching
-- **Multi-Provider Fetching (`EpisodeListProvider`)**:
-  - Sends query requests to metadata scraper APIs.
-  - Caches fetched series structures locally (`Cache` / `CacheManager`) to minimize API rate limit usage (`FloodLimit`).
-  - Supports ordering modes: Air Date Order, Absolute Order, DVD Order.
+**Status:** As-built. This document describes `EpisodesExplorerPanel.tsx` and its backend
+(`EpisodeController` / `EpisodeFetcherService`) exactly as implemented. Unlike Rename, SFV, and
+Subtitles, this area's backend was never a stub — `EpisodeFetcherServiceImpl` has always called
+real `net.filebot.web.*` provider clients. It shipped with two narrow bugs (a placeholder API
+key and a hardcoded locale) that made real calls fail silently; both are fixed. Read
+`specs/00_SYSTEM_ARCHITECTURE_AND_MODELS.md` first for the shared domain enums/DTOs and the
+synchronous-REST/WebSocket-progress model referenced below.
 
 ---
 
-## Section B: Target Spring Boot Backend Specification
+## 1. UI Overview (`frontend/src/components/EpisodesExplorerPanel.tsx`)
 
-### Service Interfaces & DTOs
+Single-panel workspace, no dedicated toolbar component — everything lives in one file.
+
+- **Search bar:** provider `<select>` (TheTVDB / TheMovieDB / AniDB / TVmaze), a text input
+  with a submit-on-Enter `<form>`, a season `<select>` (populated from the currently fetched
+  episode list, not the provider — see §4), a sort-order `<select>` (Airdate / Absolute / DVD),
+  a language `<select>` (EN/DE/FR/ES only — narrower than the 16-value `LanguageCode` enum),
+  and a "Find" submit button.
+- **Disambiguation bar:** appears only when `searchSeries` returns more than one result;  a
+  `<select>` lists every candidate as `"{name} ({year}) [{provider}]"` and switching it
+  re-fetches episodes for the newly selected series ID. `res.year` is always rendered as empty
+  here — see §6.
+- **Results area:** two tabs, "History" (session search history) and a dynamically-added tab
+  named after the currently loaded series (closable via a `☒` button that also clears
+  `hasSeriesTab` and falls back to the History tab). The episode table itself has no header
+  row or columns — each row is a single pre-formatted string
+  `"{seriesName} - {season}x{episode:02} - {title}"`, zebra-striped by array index.
+- **Right-click context menu** on an episode row: single item "Send to Rename" (see §5).
+- **Bottom toolbar:** a single "Save as..." button (see §5).
+
+State is entirely local to this component — there is no shared "current series" state with
+any other panel.
+
+---
+
+## 2. REST Contract (`EpisodeController`, base path `/api/v1/episodes`)
 
 ```java
-package net.filebot.backend.service;
+@GetMapping("/search")
+List<SearchResultDto> searchSeries(
+    @RequestParam("query") String query,
+    @RequestParam(value = "provider", defaultValue = "THE_TVDB") ProviderType provider,
+    @RequestParam(value = "language", defaultValue = "EN") LanguageCode language);
 
-import net.filebot.backend.domain.EpisodeSortOrder;
-import net.filebot.backend.domain.LanguageCode;
-import net.filebot.backend.domain.ProviderType;
-import net.filebot.backend.dto.EpisodeDto;
-import net.filebot.backend.dto.SearchResultDto;
-import java.util.List;
+@GetMapping("/series/{seriesId}")
+List<EpisodeDto> getEpisodes(
+    @PathVariable("seriesId") int seriesId,
+    @RequestParam(value = "provider", defaultValue = "THE_TVDB") ProviderType provider,
+    @RequestParam(value = "sortOrder", required = false) EpisodeSortOrder sortOrder,
+    @RequestParam(value = "language", defaultValue = "EN") LanguageCode language,
+    @RequestParam(value = "season", required = false) Integer season);
 
-public interface EpisodeFetcherService {
-    List<SearchResultDto> searchSeries(SeriesSearchRequestDto request);
-    List<EpisodeDto> getEpisodes(EpisodeFetchRequestDto request);
-    List<String> getFormattedEpisodeList(EpisodeFetchRequestDto request, String formatExpression);
-}
+@GetMapping("/series/{seriesId}/format")
+List<String> getFormattedEpisodeList(
+    @PathVariable("seriesId") int seriesId, @RequestParam("expression") String formatExpression);
+```
 
-public record SeriesSearchRequestDto(
-    String query,
-    ProviderType provider,
-    LanguageCode language
-) {}
+DTOs (`net.filebot.backend.dto`):
 
+```java
+public record SeriesSearchRequestDto(String query, ProviderType provider, LanguageCode language) {}
+public record SearchResultDto(int id, String name, Integer year, ProviderType provider) {}
 public record EpisodeFetchRequestDto(
-    int seriesId,
-    ProviderType provider,
-    EpisodeSortOrder sortOrder,
-    LanguageCode language,
-    Integer seasonFilter
-) {}
-
-public record SearchResultDto(
-    int id,
-    String name,
-    Integer year,
-    ProviderType provider
-) {}
+    int seriesId, ProviderType provider, EpisodeSortOrder sortOrder,
+    LanguageCode language, Integer seasonFilter) {}
+public record EpisodeDto(
+    ProviderType provider, String seriesName, Integer seriesId, Integer seasonNumber,
+    Integer episodeNumber, Integer absoluteNumber, String title, LocalDate releaseDate,
+    LanguageCode language, String overview) {}
 ```
 
-### REST Endpoints
+`getFormattedEpisodeList`'s controller method is itself a stub-shaped wrapper: it always
+constructs a fresh `EpisodeFetchRequestDto` with `provider=THE_TVDB`, `sortOrder=null`,
+`language=EN`, ignoring whatever provider/language the client actually searched with. Nothing
+in the frontend currently calls this endpoint (there is no format-preview feature in the UI —
+see §6), so this mismatch has no observable effect today, but do not assume this endpoint
+respects the caller's original provider/language selection if you wire a caller to it.
 
-#### 1. Search Series Endpoint
-- **Method:** `GET`
-- **Path:** `/api/v1/episodes/search`
-- **Query Parameters:** `query` (string), `provider` (`THE_TVDB`, `THE_MOVIE_DB`, `ANI_DB`, `TV_MAZE`), `language` (`EN`, `DE`, `FR`, `ES`, etc.)
-- **Response JSON Schema:**
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "array",
-  "items": {
-    "type": "object",
-    "properties": {
-      "id": { "type": "integer" },
-      "name": { "type": "string" },
-      "year": { "type": "integer" },
-      "provider": { "type": "string", "enum": ["THE_TVDB", "THE_MOVIE_DB", "ANI_DB", "TV_MAZE"] }
-    }
-  }
+---
+
+## 3. Backend Implementation (`EpisodeFetcherServiceImpl`)
+
+```java
+private EpisodeListProvider getProvider(ProviderType type) {
+  if (type == null) return WebServices.TheTVDB;
+  return switch (type) {
+    case THE_MOVIE_DB -> WebServices.TheMovieDB_TV;
+    case ANI_DB -> WebServices.AniDB;
+    case TV_MAZE -> WebServices.TVmaze;
+    default -> WebServices.TheTVDB;
+  };
+}
+
+private Locale resolveLocale(LanguageCode language) {
+  if (language == null) return Locale.ENGLISH;
+  Language resolved = Language.getLanguage(language.name());
+  return resolved != null ? resolved.getLocale() : Locale.ENGLISH;
 }
 ```
 
-#### 2. Fetch Episodes Endpoint
-- **Method:** `GET`
-- **Path:** `/api/v1/episodes/series/{seriesId}`
-- **Query Parameters:** `provider` (`ProviderType`), `sortOrder` (`AIR_DATE`, `ABSOLUTE`, `DVD`), `language` (`LanguageCode`), `season` (optional integer)
-- **Response JSON Schema:** List of `EpisodeDto` objects.
+- `getProvider` resolves the **real, pre-wired** `net.filebot.WebServices` singletons
+  (`TheTVDB` = `TheTVDBClientWithLocalSearch` constructed with a real API key from
+  `Settings.getApiKey("thetvdb")`; `AniDB` = `AnidbClientWithLocalSearch` version `7`;
+  `TheMovieDB_TV` wraps the real `TMDbClient`). Previously this method constructed brand-new
+  clients inline with the literal string `"test-key"` (e.g. `new TheTVDBClient("test-key")`),
+  which every real provider rejects — every search/fetch silently returned an empty list via
+  the blanket `catch (Exception e) { return emptyList(); }` below. That placeholder is gone;
+  the method now returns the same singletons `WebServices.getEpisodeListProviders()` exposes.
+- `resolveLocale` derives a real `java.util.Locale` from the request's `LanguageCode` via
+  `net.filebot.Language.getLanguage(code).getLocale()`, mirroring legacy's
+  `Language.getLocale()` resolution. Previously both `searchSeries` and `getEpisodes`
+  hardcoded `Locale.ENGLISH` regardless of what the client sent — the language selector was
+  wired end-to-end at the transport layer but dead at the point of use. Both call sites now
+  use `resolveLocale(request.language())`.
+- `searchSeries` calls `provider.search(query, locale)` and maps each real
+  `net.filebot.web.SearchResult` to a `SearchResultDto`, with `year` always set to `null` — see
+  §6, this is not a bug.
+- `getEpisodes` calls `provider.getEpisodeList(searchResult, sortOrder, locale)` — a real
+  provider call, not a fabrication — then filters the returned `List<Episode>` by
+  `request.seasonFilter()` **server-side**, before mapping to DTOs. This filtering path is
+  fully implemented and correct; see §4 for why the frontend doesn't currently exercise it on
+  every scoped fetch.
+- `getFormattedEpisodeList` re-fetches episodes via `getEpisodes(request)`, then binds each one
+  through the real `net.filebot.format.ExpressionFormat`/`MediaBindingBean` pipeline (the same
+  engine spec 03 documents) against a freshly reconstructed `Episode` object. Reachable only
+  via the one REST endpoint above; nothing in the frontend calls it.
+- All exceptions (network failure, provider 4xx/5xx, malformed response) are swallowed into an
+  empty list at each public method boundary — the frontend has no way to distinguish "no
+  results" from "the provider call failed," and always shows the same
+  `"No TV series found matching ..."` / `"No episodes found."` message either way.
 
 ---
 
-## Section C: Target React Frontend Specification
+## 4. Season Filtering — Real Server Support, Client-Side-Only Usage
 
-### Component Architecture
+`EpisodeFetchRequestDto.seasonFilter` and the server-side filter loop in `getEpisodes` are
+fully implemented and correct (§3). However, `EpisodesExplorerPanel.tsx`'s
+`fetchEpisodesForSeries` never passes a `season` argument — every fetch retrieves the entire
+series, and the season `<select>` (populated from `Array.from(new Set(episodes.map(ep =>
+ep.season)))`, i.e. derived from the already-fetched full list) filters the in-memory
+`episodes` array client-side via `filteredEpisodes`. This means:
 
-```
-EpisodesExplorerPanel
-├── SearchAndFilterHeader (Top Bar)
-│   ├── SeriesSearchInput (with TV icon placeholder)
-│   ├── SeasonFilterDropdown (e.g., "All Seasons")
-│   ├── SortOrderDropdown (e.g., "Airdate Order")
-│   ├── LanguageSelector (e.g., "English")
-│   └── FindButton (with Binoculars icon)
-├── SearchResultsTabs (e.g., "History", "Series Title")
-├── SeriesDisambiguationModal
-├── EpisodeDataTable
-│   ├── TableHeader (Season, Episode #, Title, Release Date, Absolute #)
-│   ├── TableRow (Zebra-striped rows, Click to preview formatted name)
-│   └── FormatPreviewFooter
-└── BottomToolbar
-    └── SaveAsButton (with Notepad icon)
-```
+- Season selection only ever costs the network round-trip once (whole series), then filters
+  for free — a real, working behavior today, just not the most efficient one for series with
+  many seasons.
+- Changing the season filter does **not** trigger a new fetch, and there is no gating on
+  provider capability (some providers have no per-season concept) — the `<select>` is always
+  enabled and always populated from whatever is already loaded.
+- No "season out of bounds" error state exists; an empty selection just shows zero rows.
 
-### Props & State Types (TypeScript)
-
-```typescript
-import { ProviderType, EpisodeSortOrder, LanguageCode, Episode, SearchResult } from './types';
-
-export interface EpisodesExplorerState {
-  provider: ProviderType;
-  searchQuery: string;
-  selectedSeries: SearchResult | null;
-  seasonFilter: number | 'ALL';
-  language: LanguageCode;
-  sortOrder: EpisodeSortOrder;
-  episodes: Episode[];
-  isLoading: boolean;
-  formattedPreview: string[];
-}
-```
+If a future change threads `season` through to the REST call on every selection, remember to
+also add a distinct "this season doesn't exist for this series" UI state, since the server
+loop currently can only produce "zero episodes after filtering," indistinguishable from "still
+loading" or "provider returned nothing."
 
 ---
 
-## Section D: Dialogs, Modals & Edge Cases
+## 5. Cross-Panel & Export Actions
 
-1. **Series Disambiguation Modal:**
-   - Displays candidate series when search query returns multiple matches.
-2. **Rate Limit / API Quota Warning Modal:**
-   - Alerts user when provider requests fail due to HTTP 429 / rate limits.
+- **"Send to Rename" (right-click context menu on an episode row):** calls
+  `onNavigateTab?.('RENAME', files)`, where `files` is the `files` prop passed down from
+  `AppShell.tsx` — i.e. whatever paths are currently sitting in `AppShell`'s `droppedFiles`
+  state (populated by dropping files anywhere in the app via `GlobalDropZone`, since it wraps
+  every tab). This is a **pure tab-navigation convenience**, mirroring the pattern already used
+  by `AnalyzePanel.tsx`'s "Send to" menu — it switches the active tab to Rename and hands over
+  whatever files were already dropped. **It does not send the clicked episode's metadata, and
+  there is no binding between the episode row and the transferred files.** If a real
+  "pre-populate the Rename match for this specific episode" workflow is wanted, that requires a
+  new payload shape (e.g. threading the target `EpisodeDto` through `onNavigateTab` and having
+  `RenameWorkspace` accept a pre-seeded match) — not present today.
+- **"Save as..." button:** genuinely functional, no backend call. Builds `"{series} -
+  {season}x{episode:02} - {title}"` lines from `filteredEpisodes` client-side, copies the text
+  to the clipboard (`navigator.clipboard.writeText`), and triggers a browser download of the
+  same content as `{seriesName}-List.txt` via a `Blob`/`URL.createObjectURL` anchor click. The
+  line format is hardcoded in the component, not driven by the user's actual Rename format
+  expression or any server-side formatter.
 
 ---
 
-## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
+## 6. Known Gaps / Deliberately Deferred
 
-Full detail: `specs/audit/04_episodes_audit.md`. **This is the best-wired area in the
-whole application audit** — `EpisodeFetcherServiceImpl` genuinely calls the real
-`TheTVDBClient`/`TMDbTVClient`/`AnidbClient`/`TVMazeClient` provider classes, unlike
-the fabricated/stubbed backends found in Rename, Subtitles, and SFV. It is still
-broken in production, but by narrow, cheap-to-fix bugs rather than missing
-implementation:
-
-- **EP-01 (BROKEN_FUNCTIONALITY, top priority in this document):**
-  `EpisodeFetcherServiceImpl.getProvider()` constructs every provider client with
-  the **literal placeholder string `"test-key"`**, never reading real keys from
-  `net.filebot.WebServices`. Failed auth is silently swallowed
-  (`catch(Exception e){return emptyList();}`), so every search just shows "No TV
-  series found." **New requirement:** replace the manual `new XyzClient("test-key")`
-  construction with `net.filebot.WebServices`'s pre-wired singletons
-  (`WebServices.TheTVDB`, `WebServices.TheMovieDB`, `WebServices.AniDB`) exactly as
-  `EpisodeListPanel.java:103-105`'s `WebServices.getEpisodeListProviders()` does.
-  One-line-per-provider fix, not a rewrite.
-- **EP-02 (BROKEN_FUNCTIONALITY):** both `searchSeries()` and `getEpisodes()`
-  hardcode `Locale.ENGLISH`, ignoring the (correctly transport-wired)
-  `request.language()` field entirely — non-English users always get English
-  results.
-- **EP-04 (BROKEN_FUNCTIONALITY):** the legacy right-click "Send to → Rename/List"
-  context menu (arguably the primary reason to use this panel — browse episodes,
-  then push them into the Rename matching engine) has **zero React implementation**.
-  Episodes Explorer and Rename Workspace are fully isolated from each other today.
-  Fix should mirror the already-working Analyze-panel "Send to" pattern
-  (`AppShell.tsx`'s `onNavigateTab`/`droppedFiles` lifting).
-- **§A "Format Expression Preview bar" / §C `FormatPreviewFooter` — spec
-  correction, not an implementation gap:** no such feature exists anywhere in the
-  legacy 314-line `EpisodeListPanel.java` source. Recommend removing this from the
-  spec rather than treating its absence in React as a defect.
-- Minor gaps (season-spinner keyboard shortcuts, provider season-support gating,
-  autocomplete history sourced from session state instead of the bundled release-info
-  index, missing year field in disambiguation results) are cataloged in the audit
-  file with exact citations; none block core functionality once EP-01/EP-02/EP-04
-  are fixed.
+1. **Disambiguation year hint is always empty by design, not a bug.** The legacy web-services
+   layer's `net.filebot.web.SearchResult` class carries no year field at all — `SearchResultDto
+   .year()` is hardcoded to `null` in `searchSeries()` because there is nothing to populate it
+   with. Do not "fix" this by inventing a year lookup unless a specific provider API that
+   returns one is identified and wired in as a real, separate enhancement.
+2. **No keyboard season-navigation shortcuts** (legacy binds Shift+Up/Shift+Down to spin the
+   season selector without a mouse). Not implemented.
+3. **Season `<select>` is not gated by provider capability.** Legacy locks the season control
+   to "All Seasons" when the selected provider has no real per-season concept
+   (`!provider.hasSeasonSupport()`); the React `<select>` here is always enabled regardless of
+   provider. Lower-impact than it sounds because of §4 (filtering is already purely
+   client-side, so an ungated selector can't actually break a real request), but the guard
+   itself doesn't exist.
+4. **Search history is session-local only.** `searchHistory` is a plain `useState<string[]>`
+   capped at 10 entries, lost on reload. Legacy seeds its equivalent autocomplete from
+   `MediaDetection.releaseInfo`'s bundled index of every known series name — a materially
+   larger, persistent feature that has not been ported. What exists today only re-runs a query
+   this session has already run once.
+5. **Language selector covers 4 of the 16 `LanguageCode` values** (EN/DE/FR/ES) — narrower than
+   what the backend and shared domain model support.
+6. **`getFormattedEpisodeList`'s controller wrapper ignores the caller's provider/language**
+   (§2) — currently unreachable dead behavior since nothing calls it, but a latent bug for
+   whoever wires a caller to it next.

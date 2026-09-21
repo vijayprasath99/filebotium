@@ -12,5 +12,6 @@ public record SubtitleDescriptorDto(
     LanguageCode language,
     SubtitleFormat format,
     double score,
-    String downloadUrl)
+    String downloadUrl,
+    String videoFilePath)
     implements Serializable {}

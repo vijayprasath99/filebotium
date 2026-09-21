@@ -2,7 +2,6 @@ package net.filebot.backend;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.io.File;
 import java.util.List;
 import net.filebot.backend.dto.HistoryTransactionDto;
 import net.filebot.backend.dto.RollbackRequestDto;
@@ -30,12 +29,8 @@ public class HistoryServiceTest {
   }
 
   @Test
-  public void testExportHistory() throws Exception {
-    File temp = File.createTempFile("history_export_", ".xml");
-    temp.deleteOnExit();
-
-    service.exportHistory("xml", temp.getAbsolutePath());
-    assertTrue(temp.exists());
-    assertTrue(temp.length() > 0);
+  public void testExportHistory() {
+    byte[] content = service.exportHistory("xml");
+    assertNotNull(content);
   }
 }

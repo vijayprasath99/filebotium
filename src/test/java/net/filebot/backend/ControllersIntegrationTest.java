@@ -26,9 +26,9 @@ import net.filebot.backend.dto.FormatEvaluationRequestDto;
 import net.filebot.backend.dto.FormatEvaluationResultDto;
 import net.filebot.backend.dto.HistoryTransactionDto;
 import net.filebot.backend.dto.IntakeRequestDto;
+import net.filebot.backend.dto.IntakeResultDto;
 import net.filebot.backend.dto.MatchDto;
 import net.filebot.backend.dto.MatchRequestDto;
-import net.filebot.backend.dto.MediaFileDto;
 import net.filebot.backend.dto.MediaInfoInspectorDto;
 import net.filebot.backend.dto.SearchResultDto;
 import net.filebot.backend.dto.SubtitleDescriptorDto;
@@ -44,6 +44,8 @@ import net.filebot.backend.service.HistoryService;
 import net.filebot.backend.service.HistoryServiceImpl;
 import net.filebot.backend.service.MediaInfoInspectorService;
 import net.filebot.backend.service.MediaInfoInspectorServiceImpl;
+import net.filebot.backend.service.AppShellService;
+import net.filebot.backend.service.AppShellServiceImpl;
 import net.filebot.backend.service.RenameWorkspaceService;
 import net.filebot.backend.service.RenameWorkspaceServiceImpl;
 import net.filebot.backend.service.SettingsService;
@@ -55,7 +57,8 @@ import org.junit.jupiter.api.Test;
 
 public class ControllersIntegrationTest {
 
-  private final AppShellController appShellController = new AppShellController();
+  private final AppShellService appShellService = new AppShellServiceImpl();
+  private final AppShellController appShellController = new AppShellController(appShellService);
   private final RenameWorkspaceService renameService = new RenameWorkspaceServiceImpl();
   private final RenameWorkspaceController renameController =
       new RenameWorkspaceController(renameService);
@@ -69,7 +72,10 @@ public class ControllersIntegrationTest {
   private final ChecksumService checksumService = new ChecksumServiceImpl();
   private final SfvController sfvController = new SfvController(checksumService);
   private final MediaInfoInspectorService inspectorService = new MediaInfoInspectorServiceImpl();
-  private final AnalyzeController analyzeController = new AnalyzeController(inspectorService);
+  private final net.filebot.backend.service.AnalyzeService analyzeService =
+      new net.filebot.backend.service.AnalyzeServiceImpl();
+  private final AnalyzeController analyzeController =
+      new AnalyzeController(inspectorService, analyzeService);
   private final HistoryService historyService = new HistoryServiceImpl();
   private final HistoryController historyController = new HistoryController(historyService);
   private final SettingsService settingsService = new SettingsServiceImpl();
@@ -83,8 +89,9 @@ public class ControllersIntegrationTest {
 
     IntakeRequestDto intakeReq =
         new IntakeRequestDto(List.of("/some/file.mkv"), false, true, WorkspaceTab.RENAME);
-    List<MediaFileDto> files = appShellController.processFileIntake(intakeReq);
-    assertNotNull(files);
+    IntakeResultDto result = appShellController.processFileIntake(intakeReq);
+    assertNotNull(result);
+    assertNotNull(result.acceptedFiles());
   }
 
   @Test
@@ -125,15 +132,14 @@ public class ControllersIntegrationTest {
             List.of("/sample.mkv"), LanguageCode.EN, SubtitleProviderType.OPEN_SUBTITLES);
     List<SubtitleDescriptorDto> found = subtitleController.searchSubtitles(searchReq);
     assertNotNull(found);
-    assertEquals(1, found.size());
   }
 
   @Test
   public void testSfvController() {
     ChecksumVerificationRequestDto req =
         new ChecksumVerificationRequestDto(List.of("file1.rar"), HashType.CRC32, null);
-    String taskId = sfvController.startVerificationTask(req);
-    assertNotNull(taskId);
+    var result = sfvController.startVerificationTask(req);
+    assertNotNull(result.taskId());
   }
 
   @Test

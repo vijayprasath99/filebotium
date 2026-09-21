@@ -4,6 +4,7 @@ import java.util.List;
 import net.filebot.backend.dto.ChecksumEntryDto;
 import net.filebot.backend.dto.ChecksumExportRequestDto;
 import net.filebot.backend.dto.ChecksumVerificationRequestDto;
+import net.filebot.backend.dto.ChecksumVerificationResultDto;
 import net.filebot.backend.service.ChecksumService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,7 +24,8 @@ public class SfvController {
   }
 
   @PostMapping("/verify")
-  public String startVerificationTask(@RequestBody ChecksumVerificationRequestDto request) {
+  public ChecksumVerificationResultDto startVerificationTask(
+      @RequestBody ChecksumVerificationRequestDto request) {
     return checksumService.startVerificationTask(request);
   }
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -124,6 +124,29 @@ function createWindow(url) {
     mainWindow = null;
   });
 }
+
+// Reveal-in-folder / move-to-trash - previously fully absent (no Electron IPC bridge existed at
+// all beyond `getPath`), so React's context-menu handlers for these were dangling no-ops
+// (specs/audit/05/07 audits AN-5, RF-13).
+ipcMain.handle('reveal-in-folder', (event, filePath) => {
+  if (!filePath) return { success: false, error: 'No path provided' };
+  try {
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+});
+
+ipcMain.handle('move-to-trash', async (event, filePath) => {
+  if (!filePath) return { success: false, error: 'No path provided' };
+  try {
+    await shell.trashItem(filePath);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+});
 
 app.whenReady().then(startBackend);
 

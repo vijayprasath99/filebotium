@@ -2,8 +2,34 @@ declare global {
   interface Window {
     electronAPI?: {
       getPath: (file: File) => string;
+      revealInFolder?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
+      moveToTrash?: (filePath: string) => Promise<{ success: boolean; error?: string }>;
     };
   }
+}
+
+/**
+ * Reveals a file in the OS file manager (Explorer/Finder/etc), or shows the containing folder
+ * of a file when `revealFolder` is true. No-op with a status message outside Electron
+ * (specs/audit/07_analyze_audit.md AN-5 - previously always a dangling no-op even in Electron,
+ * since no IPC bridge for this existed at all).
+ */
+export async function revealInFileManager(
+  filePath: string,
+  revealFolder: boolean = false
+): Promise<{ success: boolean; error?: string }> {
+  if (typeof window === 'undefined' || !window.electronAPI?.revealInFolder) {
+    return { success: false, error: 'Not available outside the desktop app.' };
+  }
+  const target = revealFolder ? filePath.replace(/[/\\][^/\\]+$/, '') || filePath : filePath;
+  return window.electronAPI.revealInFolder(target);
+}
+
+export async function moveToTrash(filePath: string): Promise<{ success: boolean; error?: string }> {
+  if (typeof window === 'undefined' || !window.electronAPI?.moveToTrash) {
+    return { success: false, error: 'Not available outside the desktop app.' };
+  }
+  return window.electronAPI.moveToTrash(filePath);
 }
 
 /**

@@ -29,6 +29,11 @@ public class SubtitleController {
     return subtitleService.computeOpenSubtitlesHash(filePath);
   }
 
+  @GetMapping("/content")
+  public String readSubtitleContent(@RequestParam("filePath") String filePath) {
+    return subtitleService.readSubtitleContent(filePath);
+  }
+
   @PostMapping("/search")
   public List<SubtitleDescriptorDto> searchSubtitles(
       @RequestBody SubtitleSearchRequestDto request) {

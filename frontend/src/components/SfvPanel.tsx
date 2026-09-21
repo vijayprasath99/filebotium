@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChecksumEntry, HashType, ChecksumStatus } from '../types';
 import { sfvApi } from '../api/client';
 import { getFilePath } from '../utils/fileUtils';
-import { CheckSquare, Play, Upload, Download, Trash2, Folder, AlertCircle, CheckCircle2, RefreshCw, XCircle } from 'lucide-react';
+import { CheckSquare, Play, Upload, Download, Trash2, Folder, AlertCircle, CheckCircle2, RefreshCw, XCircle, AlertTriangle } from 'lucide-react';
 
 interface SfvPanelProps {
   files?: string[];
@@ -18,10 +18,10 @@ export const SfvPanel: React.FC<SfvPanelProps> = ({ files }) => {
   const [showOverrideInput, setShowOverrideInput] = useState(false);
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [missingFiles, setMissingFiles] = useState<string[] | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const addFilesInputRef = useRef<HTMLInputElement>(null);
-  const verifyTimerRef = useRef<number | null>(null);
 
   // Helper to resolve fake path
   const resolvePath = (rawPath: string, baseDir: string): string => {
@@ -204,38 +204,30 @@ export const SfvPanel: React.FC<SfvPanelProps> = ({ files }) => {
     );
 
     try {
-      const taskId = await sfvApi.startVerificationTask(
+      const expectedHashes: Record<string, string> = {};
+      entries.forEach((e) => {
+        if (e.expectedHash) expectedHashes[e.path] = e.expectedHash;
+      });
+
+      const { taskId, entries: resultEntries } = await sfvApi.startVerificationTask(
         entries.map((e) => e.path),
         hashType,
-        sfvFilePath || undefined
+        sfvFilePath || undefined,
+        expectedHashes
       );
 
       setActiveTaskId(taskId);
-      setStatusMessage(`Verification task started (Task ID: ${taskId.slice(0, 8)}...).`);
 
-      // Backend completes verification task; simulate progress completion callback
-      verifyTimerRef.current = window.setTimeout(() => {
-        setEntries((prev) =>
-          prev.map((entry) => {
-            const simulatedHash =
-              entry.expectedHash ||
-              Array.from({ length: entry.hashType === 'CRC32' ? 8 : entry.hashType === 'MD5' ? 32 : 40 })
-                .map(() => Math.floor(Math.random() * 16).toString(16).toUpperCase())
-                .join('');
+      const byPath = new Map(resultEntries.map((e) => [e.path, e]));
+      setEntries((prev) => prev.map((entry) => byPath.get(entry.path) ?? entry));
+      setIsVerifying(false);
+      setActiveTaskId(null);
+      setStatusMessage('Verification completed.');
 
-            const isMatch = !entry.expectedHash || entry.expectedHash.toUpperCase() === simulatedHash.toUpperCase();
-
-            return {
-              ...entry,
-              calculatedHash: simulatedHash,
-              status: isMatch ? 'OK' : 'MISMATCH',
-            };
-          })
-        );
-        setIsVerifying(false);
-        setActiveTaskId(null);
-        setStatusMessage('Verification completed.');
-      }, 1200);
+      const missing = resultEntries.filter((e) => e.status === 'MISSING').map((e) => e.path);
+      if (missing.length > 0) {
+        setMissingFiles(missing);
+      }
     } catch (err) {
       setIsVerifying(false);
       setActiveTaskId(null);
@@ -256,10 +248,6 @@ export const SfvPanel: React.FC<SfvPanelProps> = ({ files }) => {
       } catch {
         // Backend cancel
       }
-    }
-    if (verifyTimerRef.current) {
-      clearTimeout(verifyTimerRef.current);
-      verifyTimerRef.current = null;
     }
     setIsVerifying(false);
     setActiveTaskId(null);
@@ -507,13 +495,22 @@ export const SfvPanel: React.FC<SfvPanelProps> = ({ files }) => {
                       </span>
                     )}
                     {item.status === 'MISSING' && (
-                      <span className="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px] font-medium">
+                      <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold">
                         MISSING
                       </span>
                     )}
                     {item.status === 'ERROR' && (
                       <span className="bg-red-900/30 text-red-400 px-2 py-0.5 rounded text-[10px] font-bold">
                         ERROR
+                      </span>
+                    )}
+                    {item.status === 'WARNING' && (
+                      <span
+                        className="inline-flex items-center gap-1 bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-[10px] font-bold"
+                        title="Computed hash does not match the checksum embedded in the filename"
+                      >
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        WARNING
                       </span>
                     )}
                   </td>
@@ -523,6 +520,39 @@ export const SfvPanel: React.FC<SfvPanelProps> = ({ files }) => {
           </tbody>
         </table>
       </div>
+
+      {/* Missing Files Warning Modal */}
+      {missingFiles && missingFiles.length > 0 && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-amber-700/50 rounded-lg shadow-2xl overflow-hidden text-slate-100 font-sans">
+            <div className="px-4 py-3 bg-amber-950/40 border-b border-amber-800/50 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <span className="text-sm font-semibold text-amber-200">
+                {missingFiles.length} file(s) could not be found
+              </span>
+            </div>
+            <div className="p-4 space-y-2">
+              <p className="text-xs text-slate-400">
+                The following files were listed for verification but do not exist at their expected
+                location. Verify the source directory is correct, or remove these entries.
+              </p>
+              <div className="max-h-48 overflow-y-auto bg-slate-950 border border-slate-800 rounded p-2 font-mono text-[11px] text-slate-300 space-y-1">
+                {missingFiles.map((f, i) => (
+                  <div key={i} className="truncate">{f}</div>
+                ))}
+              </div>
+            </div>
+            <div className="px-4 py-3 bg-slate-800/60 border-t border-slate-700 flex justify-end">
+              <button
+                onClick={() => setMissingFiles(null)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-500 rounded transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

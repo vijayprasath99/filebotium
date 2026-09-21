@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Match, ProviderType, MatchingMode, FileAction } from '../types';
 import { MatchTableContainer } from './MatchTableContainer';
-import { renameApi, appApi } from '../api/client';
+import { PresetManagerModal } from './PresetManagerModal';
+import { renameApi, appApi, Preset, presetApi } from '../api/client';
 import { getFilePaths } from '../utils/fileUtils';
 
 interface RenameWorkspaceProps {
@@ -26,6 +27,50 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
   const [isMatching, setIsMatching] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ text: string; kind: 'info' | 'success' | 'error' } | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isPresetManagerOpen, setIsPresetManagerOpen] = useState(false);
+  const [presetFormatOverride, setPresetFormatOverride] = useState<string | null>(null);
+  const [quickPresets, setQuickPresets] = useState<Preset[]>([]);
+
+  const effectiveFormatExpression = presetFormatOverride ?? formatExpression;
+
+  // A fresh format expression from Settings/FormatEditor takes precedence over any preset
+  // override still in effect from a previous selection.
+  useEffect(() => {
+    setPresetFormatOverride(null);
+  }, [formatExpression]);
+
+  const applyPreset = (preset: Preset) => {
+    if (preset.formatExpression) setPresetFormatOverride(preset.formatExpression);
+    if (preset.provider) setProvider(preset.provider);
+    if (preset.mode) setMode(preset.mode);
+    if (preset.action) setAction(preset.action);
+    showStatus(`Applied preset "${preset.name}".`, 'info');
+  };
+
+  // Load the first 9 presets once so 1-9 keyboard shortcuts can apply them instantly,
+  // mirroring legacy RenamePanel.installKeyStrokeActions (specs/audit/02_03_rename_format_audit.md RF-11).
+  useEffect(() => {
+    presetApi
+      .listPresets()
+      .then((presets) => setQuickPresets(presets.slice(0, 9)))
+      .catch(() => setQuickPresets([]));
+  }, [isPresetManagerOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key >= '1' && e.key <= '9') {
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+        const preset = quickPresets[parseInt(e.key, 10) - 1];
+        if (preset) {
+          e.preventDefault();
+          applyPreset(preset);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [quickPresets]);
 
   const showStatus = (text: string, kind: 'info' | 'success' | 'error' = 'info') => {
     setStatusMsg({ text, kind });
@@ -38,11 +83,11 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
     }
   }, [files]);
 
-  // Re-apply format when formatExpression changes
+  // Re-apply format when the effective format expression changes
   useEffect(() => {
     if (matches.length > 0) {
       renameApi
-        .applyFormat(matches, formatExpression)
+        .applyFormat(matches, effectiveFormatExpression)
         .then((updated) => {
           if (updated && updated.length > 0) {
             setMatches(updated);
@@ -50,7 +95,7 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
         })
         .catch(console.error);
     }
-  }, [formatExpression]);
+  }, [effectiveFormatExpression]);
 
   const resolvePaths = (paths: string[]): string[] => {
     if (!basePath.trim()) return paths;
@@ -75,7 +120,7 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
         provider,
         mode,
         'EN',
-        formatExpression
+        effectiveFormatExpression
       );
       if (result && result.length > 0) {
         setMatches(result);
@@ -150,8 +195,8 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
       const rawPaths = getFilePaths(e.target.files);
       try {
         const ingested = await appApi.intakeFiles(rawPaths, 'RENAME');
-        if (ingested && ingested.length > 0) {
-          setOriginalFiles((prev) => [...prev, ...ingested.map((f) => f.path)]);
+        if (ingested?.acceptedFiles?.length > 0) {
+          setOriginalFiles((prev) => [...prev, ...ingested.acceptedFiles.map((f) => f.path)]);
         } else {
           setOriginalFiles((prev) => [...prev, ...rawPaths]);
         }
@@ -171,6 +216,28 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
     setMatches([]);
     setSelectedOriginalIdx(-1);
     setSelectedMatchIdx(-1);
+  };
+
+  const handleToggleExclude = (idx: number) => {
+    setMatches((prev) =>
+      prev.map((m, i) => (i === idx ? { ...m, isExcluded: !m.isExcluded } : m))
+    );
+  };
+
+  const handleManualRename = (idx: number, newFormattedName: string) => {
+    setMatches((prev) =>
+      prev.map((m, i) => {
+        if (i !== idx) return m;
+        const sep = m.formattedPath.includes('\\') ? '\\' : '/';
+        const dir = m.formattedPath.slice(0, m.formattedPath.lastIndexOf(sep) + 1);
+        return {
+          ...m,
+          formattedName: newFormattedName,
+          formattedPath: dir ? `${dir}${newFormattedName}` : newFormattedName,
+          status: 'MANUAL',
+        };
+      })
+    );
   };
 
   return (
@@ -210,6 +277,9 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
         onFetchData={handleFetchData}
         onClear={handleClear}
         onOpenFormatEditor={onOpenFormatEditor}
+        onOpenPresetManager={() => setIsPresetManagerOpen(true)}
+        onToggleExclude={handleToggleExclude}
+        onManualRename={handleManualRename}
         isMatching={isMatching}
         provider={provider}
         onSelectProvider={setProvider}
@@ -219,6 +289,19 @@ export const RenameWorkspace: React.FC<RenameWorkspaceProps> = ({
         onSelectAction={setAction}
         basePath={basePath}
         onSetBasePath={setBasePath}
+      />
+
+      <PresetManagerModal
+        isOpen={isPresetManagerOpen}
+        onClose={() => setIsPresetManagerOpen(false)}
+        currentConfig={{
+          formatExpression: effectiveFormatExpression,
+          provider,
+          mode,
+          language: 'EN',
+          action,
+        }}
+        onApplyPreset={applyPreset}
       />
     </div>
   );

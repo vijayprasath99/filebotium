@@ -10,6 +10,8 @@ import net.filebot.backend.dto.SubtitleUploadRequestDto;
 public interface SubtitleService {
   String computeOpenSubtitlesHash(String filePath);
 
+  String readSubtitleContent(String filePath);
+
   List<SubtitleDescriptorDto> searchSubtitles(SubtitleSearchRequestDto request);
 
   SubtitleDownloadResultDto downloadSubtitles(List<SubtitleDownloadRequestDto> requests);

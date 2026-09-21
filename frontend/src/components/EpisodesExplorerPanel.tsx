@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ProviderType, SearchResult, EpisodeSortOrder, LanguageCode } from '../types';
+import { ProviderType, SearchResult, EpisodeSortOrder, LanguageCode, WorkspaceTab } from '../types';
 import { episodeApi } from '../api/client';
 import {
   Tv,
@@ -8,6 +8,7 @@ import {
   FileEdit,
   Download,
   ListFilter,
+  FolderEdit,
 } from 'lucide-react';
 
 interface EpisodeItem {
@@ -16,7 +17,12 @@ interface EpisodeItem {
   title: string;
 }
 
-export const EpisodesExplorerPanel: React.FC = () => {
+interface EpisodesExplorerPanelProps {
+  files?: string[];
+  onNavigateTab?: (tab: WorkspaceTab, files?: string[]) => void;
+}
+
+export const EpisodesExplorerPanel: React.FC<EpisodesExplorerPanelProps> = ({ files = [], onNavigateTab }) => {
   const [query, setQuery] = useState('');
   const [provider, setProvider] = useState<ProviderType>('THE_TVDB');
   const [seasonFilter, setSeasonFilter] = useState<string>('ALL');
@@ -38,6 +44,19 @@ export const EpisodesExplorerPanel: React.FC = () => {
   const [seriesName, setSeriesName] = useState('');
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([]);
   const [hasSeriesTab, setHasSeriesTab] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; episode: EpisodeItem } | null>(null);
+
+  const handleEpisodeContextMenu = (e: React.MouseEvent, ep: EpisodeItem) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY, episode: ep });
+  };
+
+  const handleCloseContextMenu = () => setContextMenu(null);
+
+  const handleSendToRename = () => {
+    handleCloseContextMenu();
+    onNavigateTab?.('RENAME', files);
+  };
 
   const fetchEpisodesForSeries = async (
     seriesId: number,
@@ -358,6 +377,7 @@ export const EpisodesExplorerPanel: React.FC = () => {
                 return (
                   <div
                     key={idx}
+                    onContextMenu={(e) => handleEpisodeContextMenu(e, ep)}
                     className={`px-3 py-1 text-[12px] font-sans truncate cursor-pointer hover:bg-[#d8e8f8] ${
                       isEven ? 'bg-white text-[#111111]' : 'bg-[#eef5fd] text-[#111111]'
                     }`}
@@ -369,6 +389,24 @@ export const EpisodesExplorerPanel: React.FC = () => {
             </div>
           )}
         </div>
+
+        {contextMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={handleCloseContextMenu} />
+            <div
+              className="fixed z-50 bg-white border border-[#a8a8a8] rounded-[3px] shadow-lg py-1 text-[12px] min-w-[160px]"
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+            >
+              <button
+                onClick={handleSendToRename}
+                className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#eaf2fc] text-left text-[#222222]"
+              >
+                <FolderEdit className="w-3.5 h-3.5 text-amber-500" />
+                Send to Rename
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Bottom Toolbar: Centered "Save as ..." button */}
         <div className="pt-2 pb-1 flex items-center justify-center">

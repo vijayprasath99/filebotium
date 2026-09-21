@@ -5,6 +5,10 @@ import net.filebot.backend.dto.HistoryTransactionDto;
 import net.filebot.backend.dto.RollbackRequestDto;
 import net.filebot.backend.dto.RollbackResultDto;
 import net.filebot.backend.service.HistoryService;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,13 +48,15 @@ public class HistoryController {
     historyService.clearHistory();
   }
 
-  @PostMapping("/export")
-  public void exportHistory(
-      @RequestParam(value = "format", defaultValue = "xml") String format,
-      @RequestParam(value = "outputPath", required = false) String outputPath) {
-    if (outputPath == null || outputPath.isBlank()) {
-      outputPath = "history.xml";
-    }
-    historyService.exportHistory(format, outputPath);
+  @GetMapping("/export")
+  public ResponseEntity<byte[]> exportHistory(
+      @RequestParam(value = "format", defaultValue = "xml") String format) {
+    byte[] content = historyService.exportHistory(format);
+    return ResponseEntity.ok()
+        .contentType(MediaType.APPLICATION_XML)
+        .header(
+            HttpHeaders.CONTENT_DISPOSITION,
+            ContentDisposition.attachment().filename("history.xml").build().toString())
+        .body(content);
   }
 }

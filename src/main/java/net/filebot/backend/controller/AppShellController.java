@@ -1,14 +1,9 @@
 package net.filebot.backend.controller;
 
-import java.io.File;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
 import net.filebot.backend.dto.IntakeRequestDto;
-import net.filebot.backend.dto.MediaFileDto;
+import net.filebot.backend.dto.IntakeResultDto;
 import net.filebot.backend.dto.SystemStatusDto;
+import net.filebot.backend.service.AppShellService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/app")
 public class AppShellController {
+
+  private final AppShellService appShellService;
+
+  public AppShellController(AppShellService appShellService) {
+    this.appShellService = appShellService;
+  }
 
   @GetMapping("/status")
   public SystemStatusDto getSystemStatus() {
@@ -33,34 +34,7 @@ public class AppShellController {
   }
 
   @PostMapping("/intake")
-  public List<MediaFileDto> processFileIntake(@RequestBody IntakeRequestDto request) {
-    if (request == null || request.paths() == null) {
-      return Collections.emptyList();
-    }
-
-    List<MediaFileDto> accepted = new ArrayList<>();
-    for (String path : request.paths()) {
-      File file = new File(path);
-      if (file.exists()) {
-        accepted.add(
-            new MediaFileDto(
-                UUID.randomUUID().toString(),
-                file.getAbsolutePath(),
-                file.getName(),
-                extension(file.getName()),
-                file.length(),
-                Instant.ofEpochMilli(file.lastModified()),
-                file.getParent() != null ? file.getParent() : "",
-                file.isDirectory(),
-                null,
-                Collections.emptyMap()));
-      }
-    }
-    return accepted;
-  }
-
-  private String extension(String name) {
-    int dot = name.lastIndexOf('.');
-    return dot > 0 ? name.substring(dot + 1) : "";
+  public IntakeResultDto processFileIntake(@RequestBody IntakeRequestDto request) {
+    return appShellService.processFileIntake(request);
   }
 }

@@ -11,6 +11,7 @@ import net.filebot.backend.domain.HashType;
 import net.filebot.backend.dto.ChecksumEntryDto;
 import net.filebot.backend.dto.ChecksumExportRequestDto;
 import net.filebot.backend.dto.ChecksumVerificationRequestDto;
+import net.filebot.backend.dto.ChecksumVerificationResultDto;
 import net.filebot.backend.service.ChecksumService;
 import net.filebot.backend.service.ChecksumServiceImpl;
 import org.junit.jupiter.api.Test;
@@ -20,12 +21,48 @@ public class ChecksumServiceTest {
   private final ChecksumService service = new ChecksumServiceImpl();
 
   @Test
-  public void testStartVerificationTask() {
+  public void testStartVerificationTaskWithMissingFile() {
     ChecksumVerificationRequestDto req =
         new ChecksumVerificationRequestDto(List.of("file1.mkv"), HashType.CRC32, null);
-    String taskId = service.startVerificationTask(req);
-    assertNotNull(taskId);
-    assertFalse(taskId.isEmpty());
+    ChecksumVerificationResultDto result = service.startVerificationTask(req);
+    assertNotNull(result.taskId());
+    assertFalse(result.taskId().isEmpty());
+    assertEquals(1, result.entries().size());
+    assertEquals(ChecksumStatus.MISSING, result.entries().get(0).status());
+  }
+
+  @Test
+  public void testStartVerificationTaskComputesRealHashAndDetectsMismatch() throws Exception {
+    File tempFile = File.createTempFile("checksum_", ".bin");
+    tempFile.deleteOnExit();
+    try (FileWriter writer = new FileWriter(tempFile, StandardCharsets.UTF_8)) {
+      writer.write("hello world");
+    }
+
+    // compute the real hash first (no expected value supplied)
+    ChecksumVerificationRequestDto probe =
+        new ChecksumVerificationRequestDto(List.of(tempFile.getAbsolutePath()), HashType.CRC32, null);
+    ChecksumVerificationResultDto probeResult = service.startVerificationTask(probe);
+    String realHash = probeResult.entries().get(0).calculatedHash();
+    assertNotNull(realHash);
+
+    ChecksumVerificationRequestDto matching =
+        new ChecksumVerificationRequestDto(
+            List.of(tempFile.getAbsolutePath()),
+            HashType.CRC32,
+            null,
+            java.util.Map.of(tempFile.getAbsolutePath(), realHash));
+    ChecksumVerificationResultDto matchingResult = service.startVerificationTask(matching);
+    assertEquals(ChecksumStatus.OK, matchingResult.entries().get(0).status());
+
+    ChecksumVerificationRequestDto mismatching =
+        new ChecksumVerificationRequestDto(
+            List.of(tempFile.getAbsolutePath()),
+            HashType.CRC32,
+            null,
+            java.util.Map.of(tempFile.getAbsolutePath(), "FFFFFFFF"));
+    ChecksumVerificationResultDto mismatchResult = service.startVerificationTask(mismatching);
+    assertEquals(ChecksumStatus.MISMATCH, mismatchResult.entries().get(0).status());
   }
 
   @Test

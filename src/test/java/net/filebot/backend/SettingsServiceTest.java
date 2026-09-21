@@ -43,4 +43,18 @@ public class SettingsServiceTest {
         new ProviderCredentialDto(ProviderType.OPEN_SUBTITLES, "my-key", "user1", "pass1");
     service.saveProviderCredentials(creds);
   }
+
+  @Test
+  public void testProviderCredentialsAreNotStoredInPlaintext() {
+    String secretApiKey = "super-secret-api-key-12345";
+    service.saveProviderCredentials(
+        new ProviderCredentialDto(ProviderType.THE_TVDB, secretApiKey, null, null));
+
+    String stored =
+        java.util.prefs.Preferences.userNodeForPackage(net.filebot.Settings.class)
+            .get("api.key.the_tvdb", null);
+    assertNotNull(stored);
+    assertNotEquals(secretApiKey, stored);
+    assertFalse(stored.contains(secretApiKey));
+  }
 }

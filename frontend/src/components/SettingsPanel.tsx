@@ -272,7 +272,10 @@ export const SettingsPanel: React.FC = () => {
                 <option value="THE_MOVIE_DB">TheMovieDB</option>
                 <option value="OPEN_SUBTITLES">OpenSubtitles</option>
                 <option value="ANI_DB">AniDB</option>
-                <option value="TVMAZE">TVmaze</option>
+                <option value="TV_MAZE">TVmaze</option>
+                <option value="OMDB">OMDb</option>
+                <option value="ACOUSTID">AcoustID</option>
+                <option value="SHOOTER">Shooter</option>
               </select>
             </div>
 

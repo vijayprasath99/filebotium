@@ -6,5 +6,6 @@ public enum WorkspaceTab {
   SUBTITLES,
   SFV,
   ANALYZE,
-  LIST
+  LIST,
+  HISTORY
 }

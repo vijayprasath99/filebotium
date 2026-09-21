@@ -1,4 +1,4 @@
-const { contextBridge, webUtils } = require('electron');
+const { contextBridge, webUtils, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getPath: (file) => {
@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     } catch (e) {
       return (file && file.path) ? file.path : '';
     }
-  }
+  },
+  revealInFolder: (filePath) => ipcRenderer.invoke('reveal-in-folder', filePath),
+  moveToTrash: (filePath) => ipcRenderer.invoke('move-to-trash', filePath)
 });

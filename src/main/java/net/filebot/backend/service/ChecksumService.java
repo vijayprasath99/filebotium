@@ -4,9 +4,10 @@ import java.util.List;
 import net.filebot.backend.dto.ChecksumEntryDto;
 import net.filebot.backend.dto.ChecksumExportRequestDto;
 import net.filebot.backend.dto.ChecksumVerificationRequestDto;
+import net.filebot.backend.dto.ChecksumVerificationResultDto;
 
 public interface ChecksumService {
-  String startVerificationTask(ChecksumVerificationRequestDto request);
+  ChecksumVerificationResultDto startVerificationTask(ChecksumVerificationRequestDto request);
 
   void cancelVerificationTask(String taskId);
 

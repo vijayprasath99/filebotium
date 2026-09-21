@@ -1,225 +1,118 @@
-# Groovy Format Expression Engine Specification
+# Format Expression Engine Specification
 
-## Section A: Legacy Codebase Analysis
+**Status:** As-built. The evaluation engine itself is a thin, correct wrapper around legacy's
+real Groovy-based expression format — it is not reimplemented. The one significant known gap
+is the binding reference catalog, documented in §2.
 
-### Source Files Audited
-- `src/main/java/net/filebot/format/ExpressionFormat.java`
-- `src/main/java/net/filebot/format/MediaBindingBean.java`
-- `src/main/java/net/filebot/format/ExpressionFormatFunctions.java`
-- `src/main/java/net/filebot/format/ExpressionFormatMethods.java`
-- `src/main/java/net/filebot/format/ExpressionBindings.java`
-- `src/main/java/net/filebot/format/SecureCompiledScript.java`
-- `src/main/java/net/filebot/ui/rename/FormatDialog.java`
-- `src/main/java/net/filebot/ui/rename/BindingDialog.java`
-- `src/main/java/net/filebot/ui/rename/FormatExpressionTextArea.java`
-- `src/main/java/net/filebot/ui/rename/FormatExpressionTokenMaker.java`
-
-### UI Hierarchy & Layout Mechanics
-1. **Format Expression Dialog (`FormatDialog`)**:
-   - Monospaced text editing component (`FormatExpressionTextArea`) with Groovy expression syntax highlighting (`FormatExpressionTokenMaker`).
-   - Format Presets Dropdown (`Preset` list): Popular expressions for TV shows, movies, anime, and music.
-   - Binding Explorer Launcher (`BindingDialog`): Modal popup displaying available dynamic bindings with sample evaluated values for selected media file.
-   - Live Preview Table: Evaluates format expression in real-time as user types against sample media files in active workspace.
-
-### Extracted Business Logic & Binding Catalog
-1. **Compilation & Execution Model (`ExpressionFormat`)**:
-   - Compiles format expressions using Groovy `GroovyShell` wrapped in security sandbox (`SecureCompiledScript`).
-   - Expression strings like `{n} - {s00e00} - {t}` are parsed, replacing `{...}` closure tags into Groovy closure invocations.
-2. **Binding Catalog (`MediaBindingBean`)**:
-   - `n`: Primary Name / Series Title / Movie Title.
-   - `s00e00`: Season & Episode formatted string (e.g. "S01E05").
-   - `s`: Season number (`Integer`).
-   - `e`: Episode number (`Integer`).
-   - `t`: Episode Title / Subtitle.
-   - `y`: Air Year / Release Year (`Integer`).
-   - `vf`: Video Format / Resolution (e.g., "1080p", "2160p", "720p").
-   - `vc`: Video Codec (e.g., "x264", "HEVC", "AV1").
-   - `ac`: Audio Codec (e.g., "AAC", "AC3", "DTS", "FLAC").
-   - `af`: Audio Channels / Format (e.g., "6ch", "2ch", "5.1").
-   - `group`: Release group extracted from source filename.
-   - `fn`: Original source Filename.
-   - `ext`: Original file extension.
-   - `crc32`: 8-character hex CRC32 checksum extracted from filename or file content.
+Backend: `net.filebot.backend.controller.FormatController`,
+`net.filebot.backend.service.FormatExpressionEngineServiceImpl`.
+Frontend: `frontend/src/components/FormatEditorModal.tsx`, `EpisodeBindingsModal.tsx`
+(consumed from the Rename workspace — see spec 02 §4).
 
 ---
 
-## Section B: Target Spring Boot Backend Specification
+## 1. Expression Evaluation
 
-### Service Interfaces & DTOs
+```
+POST /api/v1/format/eval
+Request:  FormatEvaluationRequestDto(expression: string, sampleFilePath: string?, sampleMetadata: Object?)
+Response: FormatEvaluationResultDto(expression, result: string, isError: boolean,
+                                     errorMessage: string?, executionTimeMs: long)
+```
+
+`FormatExpressionEngineServiceImpl.evaluateExpression` does exactly what it looks like:
 
 ```java
-package net.filebot.backend.service;
+ExpressionFormat format = new ExpressionFormat(expression);
+File file = filePath != null ? new File(filePath) : null;
+MediaBindingBean bindingBean = new MediaBindingBean(metadataContext, file, null);
+Object result = format.format(bindingBean);
+```
 
-import net.filebot.backend.dto.BindingDocumentationDto;
-import net.filebot.backend.dto.FormatEvaluationResultDto;
-import java.util.List;
-import java.util.Map;
+`net.filebot.format.ExpressionFormat` and `net.filebot.format.MediaBindingBean` are legacy
+classes used verbatim — the same Groovy-based expression engine legacy's Rename panel and CLI
+use (`{n}`, `{s00e00}`, `{t}`, method-chain bindings like `{n.space('.').lower()}`, etc.). Any
+exception during parsing or evaluation is caught and returned as
+`isError=true, errorMessage=<exception message>` rather than propagating an HTTP error —
+the frontend always gets a 200 response with a pass/fail flag baked in.
 
-public interface FormatExpressionEngineService {
-    FormatEvaluationResultDto evaluateExpression(String expression, Object metadataContext, String filePath);
-    List<FormatEvaluationResultDto> batchEvaluate(String expression, List<String> filePaths);
-    List<BindingDocumentationDto> getAvailableBindings(String filePath, Object metadataContext);
-    boolean validateExpressionSyntax(String expression);
-}
+`batchEvaluate(expression, filePaths)` is a convenience loop calling `evaluateExpression` once
+per path with `metadataContext = new File(path)` (i.e. no real matched metadata — evaluating
+against the bare file, useful only for previewing filename-derived bindings like `{fn}`).
+**No controller endpoint currently exposes `batchEvaluate`** — it exists on the service
+interface but is unused. `RenameWorkspaceServiceImpl` has its own, separate
+`evaluateFormat` helper (spec 02 §2.3) that binds against real matched `Episode`/`Movie`
+objects; the two evaluation paths are intentionally not unified into one shared code path,
+though both ultimately construct `ExpressionFormat` + `MediaBindingBean` the same way.
 
-public enum BindingCategory {
-    GENERAL, VIDEO, AUDIO, SERIES, MOVIE
-}
+## 2. Binding Catalog — Known Gap
 
-public record FormatEvaluationRequestDto(
-    String expression,
-    String sampleFilePath,
-    Object sampleMetadata
-) {}
+```
+GET /api/v1/format/bindings?filePath={optional}
+Response: BindingDocumentationDto[]   // { bindingKey, description, exampleValue, category }
+```
 
-public record FormatEvaluationResultDto(
-    String expression,
-    String result,
-    boolean isError,
-    String errorMessage,
-    long executionTimeMs
-) {}
-
+```java
 public record BindingDocumentationDto(
-    String bindingKey,
-    String description,
-    String exampleValue,
-    BindingCategory category
-) {}
+    String bindingKey, String description, String exampleValue, BindingCategory category)
+// BindingCategory: GENERAL, VIDEO, AUDIO, SERIES, MOVIE
 ```
 
-### REST Endpoints
+**`getAvailableBindings()` returns a hardcoded list of 8 entries** (`n`, `s00e00`, `t`, `y`,
+`vf`, `vc`, `ac`, `group`) regardless of the `filePath`/`metadataContext` arguments passed in —
+both parameters are accepted but never read. This is a known, **not yet fixed**, gap: legacy's
+real `MediaBindingBean` exposes several dozen bindings (season/episode variants, audio/video
+stream details, checksum, absolute numbering, per-provider IDs, etc.). A future contributor
+wanting to close this should reflectively introspect `MediaBindingBean`'s public getters
+(each `@Define("bindingName")`-annotated or conventionally-named getter corresponds to one
+binding) rather than hand-maintaining this list — see legacy's `FormatDialog`/`BindingDialog`
+resource bundles for the canonical reference catalog and example values, if one exists.
+**This session did not attempt that fix**; treat the current 8-item list as the accurate
+description of *what the API returns today*, not of what bindings actually work in an
+expression (many more do — you can type `{airdate}`, `{vf}`, `{resolution}`, etc. into the
+Format Editor and it will evaluate correctly via `evaluateExpression`; they just won't appear
+in the reference table).
 
-#### 1. Evaluate Format Expression Endpoint
-- **Method:** `POST`
-- **Path:** `/api/v1/format/eval`
-- **Request JSON Schema:**
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "expression": { "type": "string" },
-    "sampleFilePath": { "type": "string" },
-    "sampleMetadata": { "type": "object" }
-  },
-  "required": ["expression"]
-}
+## 3. Syntax Validation
+
 ```
-- **Response JSON Schema:**
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "expression": { "type": "string" },
-    "result": { "type": "string" },
-    "isError": { "type": "boolean" },
-    "errorMessage": { "type": "string" },
-    "executionTimeMs": { "type": "number" }
-  }
-}
+POST /api/v1/format/validate
+Body: { "expression": string }  (or ?expression= query param — the controller accepts either)
+Response: boolean
 ```
 
-#### 2. Get Bindings Catalog Endpoint
-- **Method:** `GET`
-- **Path:** `/api/v1/format/bindings`
-- **Response JSON Schema:** List of `BindingDocumentationDto` objects categorized by `GENERAL`, `VIDEO`, `AUDIO`, `SERIES`, `MOVIE`.
+`validateExpressionSyntax` returns `true` iff `new ExpressionFormat(expression)` does not throw
+— i.e. it validates *parse-ability*, not evaluate-ability against any particular file/metadata
+(an expression can be syntactically valid and still throw at evaluation time against a
+particular binding context, which is what `evaluateExpression`'s `isError` flag separately
+reports).
+
+## 4. Frontend Usage
+
+`FormatEditorModal.tsx` debounces (200ms) calls to both `/format/validate` and `/format/eval`
+on every keystroke, rendering a "✓ Valid Syntax" / "✗ Syntax Error" badge from the validate
+call and a live preview string (or the error message) from the eval call. `sampleFilePath`/
+`sampleMetadata` are never populated by this modal today — every live-preview evaluation runs
+with `metadataContext = null, filePath = null`, so bindings that depend on file/metadata
+context (e.g. `{vf}`, `{n}` when no series is bound) will not resolve meaningfully in this
+preview; only string-literal and metadata-independent expressions preview accurately here.
+
+`EpisodeBindingsModal.tsx` optionally lets the user pick a local "sample" file (via a hidden
+`<input type=file>` + `getFilePath()`) and re-fetches `/format/bindings?filePath=...` when it
+changes — but per §2, the backend ignores `filePath` entirely, so this control currently has no
+observable effect on the returned binding list.
 
 ---
 
-## Section C: Target React Frontend Specification
+## 5. Known Gaps / Deliberately Deferred
 
-### Component Architecture
-
-```
-FormatEditorModal
-├── EditorToolbar
-│   ├── FormatPresetSelector
-│   ├── BindingPickerToggle
-│   └── SyntaxValidationBadge
-├── GroovyCodeEditor (Monaco Editor / CodeMirror with Groovy syntax & completion)
-├── BindingInspectorDrawer
-│   └── BindingCategoryGroup
-│       └── BindingRow (Key, Description, Live Evaluated Value)
-└── LivePreviewTable
-    └── PreviewRow (Sample File Path -> Evaluated Output Path)
-```
-
-### Props & State Types (TypeScript)
-
-```typescript
-export type BindingCategory = 'GENERAL' | 'VIDEO' | 'AUDIO' | 'SERIES' | 'MOVIE';
-
-export interface FormatEditorProps {
-  isOpen: boolean;
-  initialExpression: string;
-  onSave: (expression: string) => void;
-  onClose: () => void;
-  sampleFiles: MediaFile[];
-}
-
-export interface BindingDocumentation {
-  bindingKey: string;
-  description: string;
-  exampleValue: string;
-  category: BindingCategory;
-}
-
-export interface FormatEvaluationResult {
-  expression: string;
-  result: string;
-  isError: boolean;
-  errorMessage?: string;
-  executionTimeMs: number;
-}
-```
-
----
-
-## Section D: Dialogs, Modals & Edge Cases
-
-1. **Groovy Sandbox Exception Alert:**
-   - Displayed when user format expression throws a Groovy runtime exception (e.g. `NullPointerException`, missing method) or attempts restricted operations (file writing, system exec calls).
-2. **Preset Manager Modal:**
-   - Allows users to save, edit, and delete custom format expression presets stored in system preferences.
-
----
-
-## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
-
-Full detail: `specs/audit/02_03_rename_format_audit.md` (gaps RF-09/RF-10/RF-11/RF-15,
-same file covers both specs 02 and 03 since the legacy source and React components
-are shared between Rename and Format).
-
-- **RF-15 (BROKEN_FUNCTIONALITY):** `FormatExpressionEngineServiceImpl
-  .getAvailableBindings()` returns a **hardcoded 8-item list** regardless of the
-  `filePath`/`metadataContext` arguments passed in (both accepted but unused). This
-  spec's own §A binding catalog (13 entries) already under-documents the real
-  `net.filebot.format.MediaBindingBean` (1128 lines, dozens of bindings — season/
-  episode components, absolute numbering, air dates, series ids, xattr, and more).
-  **New requirement:** replace the hardcoded list with reflective introspection of
-  `MediaBindingBean`'s public getters; the legacy `FormatDialog`/`BindingDialog`
-  resource bundles likely already enumerate the canonical catalog and per-mode
-  example expressions — locate and reuse rather than hand-author a new list.
-- **RF-10 (COSMETIC/MINOR but extensive):** `FormatEditorModal.tsx` is a simplified
-  reimplementation, not a port, of `FormatDialog.java`: no independent per-type
-  (Episode/Movie/Music/File) persisted format history, no Groovy syntax highlighting
-  (`FormatExpressionTextArea`/`FormatExpressionTokenMaker` unported), no "Change
-  Sample" object picker, no folder browser, no recent-format popup. Not all of this
-  needs to ship immediately, but should be tracked explicitly rather than assumed
-  covered by the current single-mode text-input modal.
-- **RF-11 (BROKEN_FUNCTIONALITY):** this document's §D "Preset Manager Modal" has
-  **zero implementation anywhere** — no React component, no backend controller or
-  service, confirmed via full-codebase grep. `PresetEditor.java`/`Preset.java` are
-  the direct, plain-Java port targets (full CRUD: name, input folder or "use
-  selection", include-filter expression, format expression, datasource, sort order,
-  language, match mode, rename action — applied via popup or number keys 1-9 in
-  legacy).
-- **Ambiguous (needs product decision, not to be guessed at):** whether the target
-  design is "one global format expression shared across content types" (current
-  implementation) or "four independently-persisted per-type expressions applied
-  automatically by the runtime type of the matched object" (legacy's actual
-  behavior, and what `AppSettingsDto`'s existing `tvFormat`/`movieFormat`/
-  `musicFormat`/`animeFormat` fields suggest was intended, but which nothing in the
-  Rename workspace currently reads — see specs/09 addendum SET-13).
+- **Binding catalog is a hardcoded 8-item list**, not a reflective enumeration of
+  `MediaBindingBean` (§2) — the single most significant gap in this area.
+- **`batchEvaluate` has no REST endpoint** — dead code on the service interface.
+- **No independent re-verification this session** of whether every binding legacy's Groovy
+  engine supports evaluates correctly through this wrapper — `ExpressionFormat`/
+  `MediaBindingBean` are used as-is (not modified), so behavior should match legacy for any
+  binding that's actually exercised, but no exhaustive binding-by-binding test suite exists
+  here (`FormatExpressionEngineServiceTest.java` covers only `getAvailableBindings`,
+  `evaluateExpression`, and `validateExpressionSyntax` at a basic level).
+- **Live preview in `FormatEditorModal` never binds to real sample metadata** — see §4.

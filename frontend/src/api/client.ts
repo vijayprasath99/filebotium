@@ -105,9 +105,35 @@ export const appApi = {
     const res = await api.get('/app/status');
     return res.data;
   },
-  intakeFiles: async (paths: string[], targetWorkspace: WorkspaceTab): Promise<MediaFile[]> => {
+  intakeFiles: async (
+    paths: string[],
+    targetWorkspace: WorkspaceTab
+  ): Promise<{ acceptedFiles: MediaFile[]; rejectedCount: number }> => {
     const res = await api.post('/app/intake', { paths, recursive: true, filterHidden: true, targetWorkspace });
     return res.data;
+  }
+};
+
+export interface Preset {
+  name: string;
+  formatExpression: string | null;
+  provider: ProviderType | null;
+  mode: MatchingMode | null;
+  language: LanguageCode | null;
+  action: FileAction | null;
+}
+
+export const presetApi = {
+  listPresets: async (): Promise<Preset[]> => {
+    const res = await api.get('/presets');
+    return res.data;
+  },
+  savePreset: async (preset: Preset): Promise<Preset> => {
+    const res = await api.post('/presets', preset);
+    return res.data;
+  },
+  deletePreset: async (name: string): Promise<void> => {
+    await api.delete(`/presets/${encodeURIComponent(name)}`);
   }
 };
 
@@ -198,15 +224,26 @@ export const subtitleApi = {
   searchSubtitles: async (
     videoFilePaths: string[],
     language: LanguageCode,
-    provider: SubtitleProviderType = 'OPEN_SUBTITLES'
+    provider: SubtitleProviderType = 'OPEN_SUBTITLES',
+    strategy: 'EXACT' | 'FUZZY' = 'EXACT'
   ): Promise<SubtitleDescriptor[]> => {
-    const res = await api.post('/subtitles/search', { videoFilePaths, language, provider });
+    const res = await api.post('/subtitles/search', { videoFilePaths, language, provider, strategy });
     return res.data;
   },
   downloadSubtitles: async (
-    requests: { videoFilePath: string; subtitleId: string; provider?: SubtitleProviderType; targetFormat?: string }[]
+    requests: {
+      videoFilePath: string;
+      subtitleId: string;
+      provider?: SubtitleProviderType;
+      targetFormat?: string;
+      namingStrategy?: 'ORIGINAL' | 'MATCH_VIDEO' | 'MATCH_VIDEO_ADD_LANGUAGE_TAG';
+    }[]
   ): Promise<SubtitleDownloadResult> => {
     const res = await api.post('/subtitles/download', requests);
+    return res.data;
+  },
+  readContent: async (filePath: string): Promise<string> => {
+    const res = await api.get('/subtitles/content', { params: { filePath } });
     return res.data;
   }
 };
@@ -219,9 +256,10 @@ export const sfvApi = {
   startVerificationTask: async (
     filePaths: string[],
     hashType: HashType,
-    sfvFilePath?: string
-  ): Promise<string> => {
-    const res = await api.post('/sfv/verify', { filePaths, hashType, sfvFilePath });
+    sfvFilePath?: string,
+    expectedHashes?: Record<string, string>
+  ): Promise<{ taskId: string; entries: ChecksumEntry[] }> => {
+    const res = await api.post('/sfv/verify', { filePaths, hashType, sfvFilePath, expectedHashes });
     return res.data;
   },
   cancelVerificationTask: async (taskId: string): Promise<void> => {
@@ -237,6 +275,18 @@ export const sfvApi = {
   }
 };
 
+export interface ArchiveEntry {
+  name: string;
+  path: string;
+  size: number;
+}
+
+export interface FileGroup {
+  name: string;
+  files: string[];
+  totalSizeBytes: number;
+}
+
 export const analyzeApi = {
   inspectFile: async (filePath: string): Promise<MediaInfoInspector> => {
     const res = await api.get('/analyze/inspect', { params: { path: filePath } });
@@ -244,6 +294,22 @@ export const analyzeApi = {
   },
   batchInspect: async (filePaths: string[]): Promise<MediaInfoInspector[]> => {
     const res = await api.post('/analyze/batch-inspect', filePaths);
+    return res.data;
+  },
+  listArchiveEntries: async (archiveFilePath: string): Promise<ArchiveEntry[]> => {
+    const res = await api.get('/analyze/archive/entries', { params: { path: archiveFilePath } });
+    return res.data;
+  },
+  groupIntoParts: async (filePaths: string[], splitSizeMB: number = 4480): Promise<FileGroup[]> => {
+    const res = await api.post('/analyze/parts', filePaths, { params: { splitSizeMB } });
+    return res.data;
+  },
+  classifyByType: async (filePaths: string[]): Promise<FileGroup[]> => {
+    const res = await api.post('/analyze/types', filePaths);
+    return res.data;
+  },
+  getFileAttributes: async (filePath: string): Promise<Record<string, string>> => {
+    const res = await api.get('/analyze/attributes', { params: { path: filePath } });
     return res.data;
   }
 };
@@ -263,8 +329,9 @@ export const historyApi = {
   clearHistory: async (): Promise<void> => {
     await api.delete('/history');
   },
-  exportHistory: async (format: string = 'xml', outputPath?: string): Promise<void> => {
-    await api.post('/history/export', null, { params: { format, outputPath } });
+  exportHistory: async (format: string = 'xml'): Promise<Blob> => {
+    const res = await api.get('/history/export', { params: { format }, responseType: 'blob' });
+    return res.data;
   }
 };
 

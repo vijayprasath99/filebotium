@@ -12,10 +12,11 @@ import {
   Wand2,
   Eye,
   CheckSquare,
+  Trash2,
 } from 'lucide-react';
 import { MediaInfoInspector } from '../types';
-import { analyzeApi, appApi } from '../api/client';
-import { getFilePaths } from '../utils/fileUtils';
+import { analyzeApi, appApi, ArchiveEntry } from '../api/client';
+import { getFilePaths, revealInFileManager, moveToTrash } from '../utils/fileUtils';
 
 interface AnalyzePanelProps {
   files?: string[];
@@ -25,12 +26,28 @@ interface AnalyzePanelProps {
 interface TypeGroup {
   name: string;
   count: number;
-  size: string;
+  sizeBytes: number;
   files: string[];
 }
 
+interface PartGroup {
+  name: string;
+  files: string[];
+  sizeBytes: number;
+}
+
+const formatBytes = (bytes: number): string => {
+  if (bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+};
+
+const ARCHIVE_EXTENSIONS = /\.(zip|rar|7z|tar|gz|bz2|xz|iso)$/i;
+
 export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab }) => {
   const [types, setTypes] = useState<TypeGroup[]>([]);
+  const [partGroups, setPartGroups] = useState<PartGroup[]>([]);
   const [treeFiles, setTreeFiles] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'Archives' | 'Types' | 'Parts' | 'Attributes' | 'MediaInfo'>('Types');
   const [selectedTypeIdx, setSelectedTypeIdx] = useState<number>(-1);
@@ -41,6 +58,12 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
   const [expandedTree, setExpandedTree] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [statusMsg, setStatusMsg] = useState<{ text: string; kind: 'info' | 'error' } | null>(null);
+  const [selectedArchive, setSelectedArchive] = useState<string | null>(null);
+  const [archiveEntries, setArchiveEntries] = useState<ArchiveEntry[]>([]);
+  const [isLoadingArchive, setIsLoadingArchive] = useState(false);
+  const [fileAttributes, setFileAttributes] = useState<Record<string, string>>({});
+  const [comparisonData, setComparisonData] = useState<MediaInfoInspector[] | null>(null);
+  const [isComparing, setIsComparing] = useState(false);
 
   const showStatus = (text: string, kind: 'info' | 'error' = 'info') => {
     setStatusMsg({ text, kind });
@@ -57,23 +80,33 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
     }
   }, [files]);
 
-  const populateFiles = (fileList: string[]) => {
+  const populateFiles = async (fileList: string[]) => {
     setTreeFiles(fileList);
-    const groups: Record<string, string[]> = {};
-    fileList.forEach((f) => {
-      const ext = f.split('.').pop()?.toLowerCase() || 'other';
-      if (!groups[ext]) groups[ext] = [];
-      groups[ext].push(f);
-    });
-    const typeGroups: TypeGroup[] = Object.entries(groups).map(([ext, items]) => ({
-      name: ext,
-      count: items.length,
-      size: `${items.length} file(s)`,
-      files: items,
-    }));
-    setTypes(typeGroups);
-    if (typeGroups.length > 0) setSelectedTypeIdx(0);
     setExpandedTree(true);
+
+    try {
+      const groups = await analyzeApi.classifyByType(fileList);
+      const typeGroups: TypeGroup[] = groups.map((g) => ({
+        name: g.name,
+        count: g.files.length,
+        sizeBytes: g.totalSizeBytes,
+        files: g.files,
+      }));
+      setTypes(typeGroups);
+      setSelectedTypeIdx(typeGroups.length > 0 ? 0 : -1);
+    } catch (err) {
+      console.error('Failed to classify files:', err);
+      setTypes([]);
+    }
+
+    try {
+      const parts = await analyzeApi.groupIntoParts(fileList);
+      setPartGroups(parts.map((p) => ({ name: p.name, files: p.files, sizeBytes: p.totalSizeBytes })));
+    } catch (err) {
+      console.error('Failed to compute split parts:', err);
+      setPartGroups([]);
+    }
+
     if (fileList.length > 0) {
       handleInspectFile(fileList[0]);
     }
@@ -89,6 +122,41 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
       console.error('Failed to inspect file:', err);
     } finally {
       setIsInspecting(false);
+    }
+
+    try {
+      const attrs = await analyzeApi.getFileAttributes(filePath);
+      setFileAttributes(attrs || {});
+    } catch (err) {
+      setFileAttributes({});
+    }
+  };
+
+  const handleCompareAll = async () => {
+    if (treeFiles.length < 2) return;
+    setIsComparing(true);
+    try {
+      const results = await analyzeApi.batchInspect(treeFiles);
+      setComparisonData(results);
+    } catch (err) {
+      console.error('Failed to batch-inspect files:', err);
+      showStatus('Failed to compare media files.', 'error');
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
+  const handleInspectArchive = async (archivePath: string) => {
+    setSelectedArchive(archivePath);
+    setIsLoadingArchive(true);
+    try {
+      const entries = await analyzeApi.listArchiveEntries(archivePath);
+      setArchiveEntries(entries);
+    } catch (err) {
+      console.error('Failed to list archive entries:', err);
+      setArchiveEntries([]);
+    } finally {
+      setIsLoadingArchive(false);
     }
   };
 
@@ -123,8 +191,8 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
       const rawPaths = getFilePaths(e.target.files);
       let fileList = rawPaths;
       try {
-        const ingested = await appApi.intakeFiles(rawPaths, 'LIST');
-        if (ingested && ingested.length > 0) fileList = ingested.map((f) => f.path);
+        const ingested = await appApi.intakeFiles(rawPaths, 'ANALYZE');
+        if (ingested?.acceptedFiles?.length > 0) fileList = ingested.acceptedFiles.map((f) => f.path);
       } catch {
         // fallback to raw paths
       }
@@ -136,9 +204,15 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
   const handleClear = () => {
     setTreeFiles([]);
     setTypes([]);
+    setPartGroups([]);
     setSelectedTypeIdx(-1);
     setExpandedTree(false);
     setExpandedTypes({});
+    setSelectedArchive(null);
+    setArchiveEntries([]);
+    setFileAttributes({});
+    setSelectedFile(null);
+    setInspectionData(null);
   };
 
   return (
@@ -287,7 +361,7 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
                         </span>
                         <Folder className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-amber-500 fill-amber-500'}`} />
                         <span>
-                          {group.name} ({group.count} files, {group.size})
+                          {group.name} ({group.count} files, {formatBytes(group.sizeBytes)})
                         </span>
                       </div>
 
@@ -309,13 +383,80 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
           )}
 
           {activeTab === 'MediaInfo' && (
-            isInspecting ? (
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-200 shrink-0">
+                <span className="font-semibold text-[11px] text-slate-600 uppercase tracking-wider">
+                  {comparisonData ? `Comparing ${comparisonData.length} files` : 'MediaInfo'}
+                </span>
+                {comparisonData ? (
+                  <button
+                    onClick={() => setComparisonData(null)}
+                    className="text-[11px] px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded text-slate-600"
+                  >
+                    Back to single file
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCompareAll}
+                    disabled={treeFiles.length < 2 || isComparing}
+                    className="text-[11px] px-2 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 rounded text-slate-600"
+                    title="Compare MediaInfo technical parameters across all loaded files"
+                  >
+                    {isComparing ? 'Comparing...' : `Compare All Files (${treeFiles.length})`}
+                  </button>
+                )}
+              </div>
+              <div className="flex-1 overflow-auto">
+                {comparisonData ? (
+                  <table className="w-full text-[11px] font-mono border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 sticky top-0">
+                        <th className="p-1.5 text-left">File</th>
+                        <th className="p-1.5 text-left">Container</th>
+                        <th className="p-1.5 text-left">Video</th>
+                        <th className="p-1.5 text-left">Audio</th>
+                        <th className="p-1.5 text-left">Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {comparisonData.map((d, di) => (
+                        <tr key={di} className="border-t border-slate-100 hover:bg-slate-50">
+                          <td className="p-1.5 truncate max-w-[200px]" title={d.filePath}>
+                            {d.filePath.split(/[/\\]/).pop()}
+                          </td>
+                          <td className="p-1.5">{d.containerFormat}</td>
+                          <td className="p-1.5">
+                            {d.videoStreams?.[0]
+                              ? `${d.videoStreams[0].codec} ${d.videoStreams[0].width}x${d.videoStreams[0].height}`
+                              : '-'}
+                          </td>
+                          <td className="p-1.5">
+                            {d.audioStreams?.[0]
+                              ? `${d.audioStreams[0].codec} ${d.audioStreams[0].channels}ch`
+                              : '-'}
+                          </td>
+                          <td className="p-1.5">
+                            {d.durationMs > 0 ? `${Math.round(d.durationMs / 1000)}s` : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : isInspecting ? (
               <div className="h-full flex items-center justify-center text-slate-400 text-xs font-sans p-6 text-center">
                 Inspecting media technical parameters...
               </div>
             ) : !selectedFile || !inspectionData ? (
               <div className="h-full flex items-center justify-center text-slate-400 text-xs font-sans p-6 text-center">
                 No media information available. Select a media file to inspect streams.
+              </div>
+            ) : inspectionData.containerFormat === 'NATIVE_LIBRARY_MISSING' ? (
+              <div className="h-full flex flex-col items-center justify-center gap-2 text-amber-700 text-xs font-sans p-6 text-center">
+                <span className="font-semibold">MediaInfo native library not available.</span>
+                <span className="text-slate-500">
+                  Media technical parameters cannot be inspected on this system until libmediainfo
+                  is installed.
+                </span>
               </div>
             ) : (
               <div className="p-3 space-y-3 text-xs font-sans">
@@ -391,44 +532,80 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
                   )}
                 </div>
               </div>
-            )
+            )}
+              </div>
+            </div>
           )}
 
           {activeTab === 'Archives' && (
-            <div className="p-3 text-xs">
-              <div className="font-semibold text-[11px] text-slate-600 uppercase tracking-wider mb-2">Compressed Archives</div>
-              {treeFiles.filter((f) => /\.(zip|rar|7z|tar|gz|bz2|xz|iso)$/i.test(f)).length === 0 ? (
-                <div className="text-center text-slate-400 p-4">No compressed archive files found in loaded files.</div>
-              ) : (
-                <div className="space-y-1">
-                  {treeFiles
-                    .filter((f) => /\.(zip|rar|7z|tar|gz|bz2|xz|iso)$/i.test(f))
-                    .map((f, fi) => (
-                      <div key={fi} onClick={() => handleInspectFile(f)} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer">
-                        <Folder className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="truncate">{f}</span>
+            <div className="p-3 text-xs flex gap-3 h-full">
+              <div className="w-56 shrink-0">
+                <div className="font-semibold text-[11px] text-slate-600 uppercase tracking-wider mb-2">Compressed Archives</div>
+                {treeFiles.filter((f) => ARCHIVE_EXTENSIONS.test(f)).length === 0 ? (
+                  <div className="text-center text-slate-400 p-4">No compressed archive files found in loaded files.</div>
+                ) : (
+                  <div className="space-y-1">
+                    {treeFiles
+                      .filter((f) => ARCHIVE_EXTENSIONS.test(f))
+                      .map((f, fi) => (
+                        <div
+                          key={fi}
+                          onClick={() => handleInspectArchive(f)}
+                          className={`flex items-center gap-1.5 p-1 rounded cursor-pointer ${
+                            selectedArchive === f ? 'bg-[#0070e0] text-white' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <Folder className={`w-3.5 h-3.5 ${selectedArchive === f ? 'text-white' : 'text-amber-500'}`} />
+                          <span className="truncate">{f.split(/[/\\]/).pop()}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 border-l border-slate-200 pl-3">
+                <div className="font-semibold text-[11px] text-slate-600 uppercase tracking-wider mb-2">Entries</div>
+                {isLoadingArchive ? (
+                  <div className="text-center text-slate-400 p-4">Listing archive contents...</div>
+                ) : !selectedArchive ? (
+                  <div className="text-center text-slate-400 p-4">Select an archive to list its contents.</div>
+                ) : archiveEntries.length === 0 ? (
+                  <div className="text-center text-slate-400 p-4">No entries found (or archive support unavailable on this system).</div>
+                ) : (
+                  <div className="space-y-1">
+                    {archiveEntries.map((entry, ei) => (
+                      <div key={ei} className="flex items-center justify-between p-1 rounded hover:bg-slate-50">
+                        <span className="truncate">{entry.path}</span>
+                        <span className="text-slate-400 ml-2 shrink-0">{formatBytes(entry.size)}</span>
                       </div>
                     ))}
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
           {activeTab === 'Parts' && (
             <div className="p-3 text-xs">
-              <div className="font-semibold text-[11px] text-slate-600 uppercase tracking-wider mb-2">Multi-part Files</div>
-              {treeFiles.filter((f) => /\.(part\d+|r\d+|\d{3})$/i.test(f)).length === 0 ? (
-                <div className="text-center text-slate-400 p-4">No multi-part files found in loaded files.</div>
+              <div className="font-semibold text-[11px] text-slate-600 uppercase tracking-wider mb-2">Multi-part Groups (split by size)</div>
+              {partGroups.length === 0 ? (
+                <div className="text-center text-slate-400 p-4">No files loaded to split into parts.</div>
               ) : (
-                <div className="space-y-1">
-                  {treeFiles
-                    .filter((f) => /\.(part\d+|r\d+|\d{3})$/i.test(f))
-                    .map((f, fi) => (
-                      <div key={fi} onClick={() => handleInspectFile(f)} className="flex items-center gap-1.5 p-1 rounded hover:bg-slate-50 cursor-pointer">
-                        <File className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="truncate">{f}</span>
+                <div className="space-y-2">
+                  {partGroups.map((group, gi) => (
+                    <div key={gi} className="bg-slate-50 border border-slate-200 rounded p-2">
+                      <div className="font-semibold text-slate-700 mb-1">
+                        {group.name} ({group.files.length} files, {formatBytes(group.sizeBytes)})
                       </div>
-                    ))}
+                      <div className="space-y-0.5 pl-2">
+                        {group.files.map((f, fi) => (
+                          <div key={fi} onClick={() => handleInspectFile(f)} className="flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-slate-100 rounded">
+                            <File className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="truncate">{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -442,6 +619,17 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
                   <div><span className="text-slate-500">File:</span> {selectedFile.split(/[/\\]/).pop()}</div>
                   <div><span className="text-slate-500">Full Path:</span> {selectedFile}</div>
                   <div><span className="text-slate-500">Extension:</span> {selectedFile.split('.').pop()}</div>
+                  {fileAttributes.originalName && (
+                    <div><span className="text-slate-500">Original Name (xattr):</span> {fileAttributes.originalName}</div>
+                  )}
+                  {fileAttributes.metadata ? (
+                    <div>
+                      <span className="text-slate-500">Rename Metadata (xattr):</span>
+                      <pre className="whitespace-pre-wrap break-all bg-white border border-slate-200 rounded p-1.5 mt-1">{fileAttributes.metadata}</pre>
+                    </div>
+                  ) : (
+                    <div className="text-slate-400 italic">No FileBot rename metadata stored on this file.</div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center text-slate-400 p-4">Select a file from the tree to view its attributes.</div>
@@ -497,9 +685,11 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
           </div>
 
           <div
-            onClick={() => {
-              if (selectedFile) showStatus(`File: ${selectedFile}`, 'info');
+            onClick={async () => {
               handleCloseContextMenu();
+              if (!selectedFile) return;
+              const result = await revealInFileManager(selectedFile, false);
+              if (!result.success) showStatus(result.error || 'Failed to reveal file.', 'error');
             }}
             className="px-3 py-1 hover:bg-[#0070e0] hover:text-white cursor-pointer flex items-center gap-2"
           >
@@ -508,17 +698,35 @@ export const AnalyzePanel: React.FC<AnalyzePanelProps> = ({ files, onNavigateTab
           </div>
 
           <div
-            onClick={() => {
-              const folder = selectedFile
-                ? selectedFile.replace(/[/\\][^/\\]+$/, '')
-                : null;
-              if (folder) showStatus(`Folder: ${folder}`, 'info');
+            onClick={async () => {
               handleCloseContextMenu();
+              if (!selectedFile) return;
+              const result = await revealInFileManager(selectedFile, true);
+              if (!result.success) showStatus(result.error || 'Failed to reveal folder.', 'error');
             }}
             className="px-3 py-1 hover:bg-[#0070e0] hover:text-white cursor-pointer flex items-center gap-2"
           >
             <Folder className="w-3.5 h-3.5 text-amber-500" />
             <span>Reveal Folder</span>
+          </div>
+
+          <div
+            onClick={async () => {
+              handleCloseContextMenu();
+              if (!selectedFile) return;
+              if (!window.confirm(`Move "${selectedFile.split(/[/\\]/).pop()}" to Trash?`)) return;
+              const result = await moveToTrash(selectedFile);
+              if (result.success) {
+                setTreeFiles((prev) => prev.filter((f) => f !== selectedFile));
+                showStatus('File moved to Trash.', 'info');
+              } else {
+                showStatus(result.error || 'Failed to move file to Trash.', 'error');
+              }
+            }}
+            className="px-3 py-1 hover:bg-[#0070e0] hover:text-white cursor-pointer flex items-center gap-2"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+            <span>Move to Trash</span>
           </div>
 
           <div className="my-1 border-t border-[#e5e5e5]" />

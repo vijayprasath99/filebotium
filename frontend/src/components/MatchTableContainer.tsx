@@ -11,7 +11,10 @@ import {
   AlertTriangle,
   Code,
   FolderTree,
+  Check,
+  Bookmark,
 } from 'lucide-react';
+import { revealInFileManager } from '../utils/fileUtils';
 
 interface MatchTableContainerProps {
   originalFiles: string[];
@@ -28,6 +31,9 @@ interface MatchTableContainerProps {
   onFetchData: () => void;
   onClear: () => void;
   onOpenFormatEditor: () => void;
+  onOpenPresetManager: () => void;
+  onToggleExclude: (idx: number) => void;
+  onManualRename: (idx: number, newFormattedName: string) => void;
   isMatching: boolean;
   provider: ProviderType;
   onSelectProvider: (p: ProviderType) => void;
@@ -54,6 +60,9 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
   onFetchData,
   onClear,
   onOpenFormatEditor,
+  onOpenPresetManager,
+  onToggleExclude,
+  onManualRename,
   isMatching,
   provider,
   onSelectProvider,
@@ -77,6 +86,34 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
   });
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+
+  const startEditing = (idx: number) => {
+    setEditingIdx(idx);
+    setEditingValue(matches[idx].formattedName);
+  };
+
+  const commitEditing = () => {
+    if (editingIdx !== null && editingValue.trim()) {
+      onManualRename(editingIdx, editingValue.trim());
+    }
+    setEditingIdx(null);
+  };
+
+  const cancelEditing = () => setEditingIdx(null);
+
+  // F2 = manual rename override on the selected row (mirrors legacy RenamePanel.installKeyStrokeActions)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2' && selectedMatchIdx >= 0 && editingIdx === null) {
+        e.preventDefault();
+        startEditing(selectedMatchIdx);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedMatchIdx, editingIdx, matches]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -220,6 +257,8 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
                     <div
                       key={idx}
                       onClick={() => onSelectOriginal(idx)}
+                      onDoubleClick={() => revealInFileManager(file)}
+                      title="Double-click to reveal in file manager"
                       className={`px-2 py-0.5 text-[12px] font-mono cursor-pointer truncate ${
                         isSelected
                           ? 'bg-[#0070e0] text-white font-medium'
@@ -316,16 +355,47 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
                   rowBg = 'bg-[#fee2e2] text-[#991b1b] font-medium';
                 }
 
+                const rowOpacity = m.isExcluded ? 'opacity-40' : '';
+
                 return (
                   <div
                     key={m.matchId || idx}
                     onClick={() => onSelectMatch(idx)}
-                    className={`px-2 py-0.5 text-[12px] font-mono cursor-pointer flex items-center gap-1.5 truncate ${rowBg}`}
+                    onDoubleClick={() => startEditing(idx)}
+                    className={`px-2 py-0.5 text-[12px] font-mono cursor-pointer flex items-center gap-1.5 truncate ${rowBg} ${rowOpacity}`}
+                    title="Double-click or select + F2 to manually edit this filename"
                   >
-                    {isWarningRow && (
+                    <input
+                      type="checkbox"
+                      checked={!m.isExcluded}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => onToggleExclude(idx)}
+                      className="shrink-0 w-3 h-3 cursor-pointer"
+                      title={m.isExcluded ? 'Excluded from rename - click to include' : 'Included in rename - click to exclude'}
+                    />
+                    {isWarningRow && !m.isExcluded && (
                       <AlertTriangle className="w-3.5 h-3.5 text-yellow-300 shrink-0 fill-yellow-300 text-red-600" />
                     )}
-                    <span className="truncate">{m.formattedName}</span>
+                    {m.status === 'MANUAL' && (
+                      <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                    )}
+                    {editingIdx === idx ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingValue}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitEditing();
+                          if (e.key === 'Escape') cancelEditing();
+                        }}
+                        onBlur={commitEditing}
+                        className="flex-1 min-w-0 bg-white text-black border border-blue-400 rounded px-1 outline-none"
+                      />
+                    ) : (
+                      <span className="truncate">{m.formattedName}</span>
+                    )}
                   </div>
                 );
               })}
@@ -377,6 +447,13 @@ export const MatchTableContainer: React.FC<MatchTableContainerProps> = ({
               title="Format"
             >
               <Code className="w-3 h-3 text-emerald-600" />
+            </button>
+            <button
+              onClick={onOpenPresetManager}
+              className="px-2 py-0.5 bg-gradient-to-b from-white to-[#e6e6e6] hover:from-[#fafafa] hover:to-[#dadada] border border-[#a0a0a0] rounded-[3px] shadow-sm text-[11px] font-medium text-[#555555] flex items-center gap-1"
+              title="Preset Manager (apply saved config via 1-9)"
+            >
+              <Bookmark className="w-3 h-3 text-purple-600" />
             </button>
             <button
               onClick={onClear}

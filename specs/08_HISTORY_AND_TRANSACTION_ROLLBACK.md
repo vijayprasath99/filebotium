@@ -1,195 +1,195 @@
 # History & Transaction Rollback Specification
 
-## Section A: Legacy Codebase Analysis
-
-### Source Files Audited
-- `src/main/java/net/filebot/ui/HistoryPanel.java`
-- `src/main/java/net/filebot/ui/rename/HistoryDialog.java`
-- `src/main/java/net/filebot/History.java`
-- `src/main/java/net/filebot/HistorySpooler.java`
-- `src/main/java/net/filebot/cli/CmdlineOperations.java`
-
-### UI Hierarchy & Layout Mechanics
-1. **History Panel (`HistoryPanel`) & Modal (`HistoryDialog`)**:
-   - Transaction List: Displays chronological list of rename sessions grouped by timestamp.
-   - Session Details Table: Dual columns showing Original Path $\rightarrow$ Renamed/Target Path.
-   - Action Toolbar:
-     - "Rollback / Revert": Initiates inverse file operation.
-     - "Clear History": Purges persistent transaction logs.
-     - "Export History": Exports logs to XML, CSV, or HTML.
-
-### Extracted Business Logic & Reverse Rollback Engine
-1. **Persistence Schema (`History` / `HistorySpooler`)**:
-   - Persists execution history to XML spool files (`~/.filebot/history.xml`).
-   - Log structure: `<history><sequence date="..." count="..."><element from="..." to="..."/></sequence></history>`.
-2. **Reverse File Operation Rollback Rules**:
-   - `MOVE`: Moves file from `to` path back to `from` path. Creates parent directories of `from` if missing; deletes empty parent directories of `to` if empty.
-   - `COPY`: Deletes created file at `to` path.
-   - `HARDLINK` / `SYMLINK`: Removes link created at `to` path.
+**Status:** As-built. This document describes the History/Rollback feature as it is actually
+implemented (backend: `net.filebot.backend.{controller,service,dto}.History*`; frontend:
+`frontend/src/components/HistoryPanel.tsx`). Prior to this implementation pass, every write
+path in this area was fabricated: renames performed through the app were never recorded to
+history at all, rollback only checked `File.exists()` and reported invented success/failure
+without touching a single file, and export hand-built client-side XML that legacy's own
+importer could not read. All three are now real; this spec documents the real behavior and
+still-open gaps precisely so neither regresses silently.
 
 ---
 
-## Section B: Target Spring Boot Backend Specification
+## 1. UI (`HistoryPanel.tsx`)
 
-### Service Interfaces & DTOs
+Reached via the sidebar's **History** tab (`WorkspaceTab.HISTORY` — see spec 00 §2 and spec 01
+§2 for why this is a separate tab from **List**, which it used to be confused with).
+
+- **Transaction table**, one row per `HistoryElementDto`, flattened out of all transactions:
+  Timestamp, Source File Path, Renamed Target Path, Action (currently always renders `MOVE`
+  — see §6), and a per-row **Undo** button.
+- **Filter bar**: a live, case-insensitive, multi-word **AND** filter across the concatenated
+  source+target path of each row (`filterQuery.split(/\s+/)`, every term must appear
+  somewhere in `sourcePath + " " + targetPath}`). Mirrors legacy `HistoryDialog`'s
+  `filterEditor` behavior. Typing "office s01" only shows rows where both substrings appear.
+  An empty result set renders a distinct `No history entries match "..."` row rather than the
+  generic empty state.
+- **Refresh**: re-fetches `GET /api/v1/history`.
+- **Export XML**: downloads the real server-generated XML as a file (see §5).
+- **Clear History**: calls `DELETE /api/v1/history`, which is a confirmed no-op today (see
+  §6) — the button still exists and the confirm dialog still fires, but nothing is actually
+  deleted server-side; only the frontend's own `transactions` state is cleared, so a Refresh
+  immediately re-shows the untouched log.
+- **Undo (rollback) confirmation**: clicking a row's Undo button shows a native
+  `window.confirm("Undo rename and restore \"<filename>\" to its original name/location?")`
+  before calling the rollback endpoint. No confirmation existed before this pass — rollback
+  used to fire immediately on click.
+
+## 2. REST Contract (`HistoryController`, base path `/api/v1/history`)
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| GET | `/history` | — | `HistoryTransactionDto[]` |
+| GET | `/history/{id}` | — | `HistoryTransactionDto` or `null` |
+| POST | `/history/rollback` | `RollbackRequestDto` | `RollbackResultDto` |
+| DELETE | `/history` | — | 200, no body (no-op — see §6) |
+| GET | `/history/export?format=xml` | — | `byte[]` XML, `Content-Disposition: attachment; filename="history.xml"` |
 
 ```java
-package net.filebot.backend.service;
+public record HistoryElementDto(
+    String sourcePath, String targetPath, FileAction action, HistoryStatus status)
+    implements Serializable {}
 
-import net.filebot.backend.dto.HistoryTransactionDto;
-import net.filebot.backend.dto.RollbackResultDto;
-import java.util.List;
+public record HistoryTransactionDto(
+    String transactionId, Instant timestamp, List<HistoryElementDto> elements)
+    implements Serializable {}
 
-public interface HistoryService {
-    List<HistoryTransactionDto> getTransactionHistory();
-    HistoryTransactionDto getTransactionById(String transactionId);
-    RollbackResultDto rollbackTransaction(RollbackRequestDto request);
-    void clearHistory();
-    void exportHistory(String format, String outputPath);
-}
-
-public record RollbackRequestDto(
-    String transactionId,
-    List<String> targetPathsToRollback
-) {}
+public record RollbackRequestDto(String transactionId, List<String> targetPathsToRollback)
+    implements Serializable {}
+// targetPathsToRollback == null or empty => roll back every element in the transaction.
 
 public record RollbackResultDto(
-    String transactionId,
-    int successCount,
-    int failureCount,
-    List<RollbackErrorDto> errors
-) {}
+    String transactionId, int successCount, int failureCount, List<RollbackErrorDto> errors)
+    implements Serializable {}
 
-public record RollbackErrorDto(
-    String targetPath,
-    String expectedSourcePath,
-    String errorMessage
-) {}
+public record RollbackErrorDto(String targetPath, String expectedSourcePath, String errorMessage)
+    implements Serializable {}
 ```
 
-### REST Endpoints
+## 3. Where transaction data actually comes from
 
-#### 1. Get History Endpoint
-- **Method:** `GET`
-- **Path:** `/api/v1/history`
-- **Response JSON Schema:** List of `HistoryTransactionDto` objects.
+`HistoryServiceImpl` never writes to history itself — it only *reads* via
+`net.filebot.HistorySpooler.getInstance().getCompleteHistory()` (legacy class, reused
+verbatim; merges the current in-memory session history with `~/.filebot/history.xml` on
+disk). The write path lives in `RenameWorkspaceServiceImpl.executeRename()` (spec 02 §4):
+after each successful file operation in a batch, if `renameAction.canRevert()` is true, the
+`(source -> destination)` pair is accumulated into a `Map<File,File>` and, once the whole
+batch finishes, appended in one call:
 
-#### 2. Rollback Transaction Endpoint
-- **Method:** `POST`
-- **Path:** `/api/v1/history/rollback`
-- **Request JSON Schema:**
-```json
-{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "transactionId": { "type": "string" },
-    "targetPathsToRollback": { "type": "array", "items": { "type": "string" } }
-  },
-  "required": ["transactionId"]
+```java
+if (renameAction.canRevert()) {
+  historyBatch.put(source, destination);
+}
+...
+if (!historyBatch.isEmpty()) {
+  HistorySpooler.getInstance().append(historyBatch);
 }
 ```
 
-#### 3. Clear History Endpoint
-- **Method:** `DELETE`
-- **Path:** `/api/v1/history`
-- **Status Code:** `204 No Content`
+`canRevert()` is `net.filebot.RenameAction`'s default method, returning `true` unless
+overridden. Only `StandardRenameAction.TEST` overrides it to `false` — and `TEST` is not one
+of the four actions (`MOVE`/`COPY`/`HARDLINK`/`SYMLINK`) reachable through
+`RenameExecutionRequestDto.action()` (a `backend.domain.FileAction`). **Practical
+consequence:** every successful rename executed through this app's Rename workspace is
+recorded to history — the `canRevert()` gate is real defensive code, not currently a live
+filter, since nothing this API can execute ever returns `false` from it.
 
----
+## 4. Real rollback (`rollbackTransaction`)
 
-## Section C: Target React Frontend Specification
+1. Read the complete history via `HistorySpooler`.
+2. Find the `History.Sequence` whose derived ID (see §7) equals `request.transactionId()`. If
+   none matches, every requested `targetPathsToRollback` entry (or a single placeholder entry
+   if none were given) becomes a `RollbackErrorDto(path, "", "Transaction not found")`, and
+   `failureCount` equals that count — `successCount` is `0`.
+3. Otherwise, build a `Map<File current, File original>` from that sequence's real
+   `History.Element` entries (`element.dir()`/`element.from()`/`element.to()` — same
+   from/to resolution logic as `getTransactionHistory()`, see §7).
+4. For each requested target path (or every target in the map, if none were requested):
+   - If the target isn't a key in the map: `RollbackErrorDto(target, "", "No matching history
+     entry for this path")`, counted as a failure.
+   - Otherwise call **`net.filebot.StandardRenameAction.revert(File current, File original)`**
+     — legacy's real reversal logic, reused verbatim. It dispatches MOVE/COPY/HARDLINK/
+     SYMLINK/KEEPLINK reversal purely by inspecting live filesystem state (symlink vs. regular
+     file vs. directory), since `History.Element` never persisted which action produced it.
+     Success/exception is mapped straight to `successCount`/`failureCount` +
+     `RollbackErrorDto(target, original, exceptionMessage)`.
 
-### Component Architecture
+This means rollback genuinely moves/restores files on disk and genuinely fails when it should
+(target already gone, permission error, etc.) — there is no `File.exists()`-only shortcut
+left anywhere in this path.
 
+## 5. Real export (`exportHistory`)
+
+`HistoryServiceImpl.exportHistory(format)` calls **`net.filebot.History.exportHistory(history,
+OutputStream)`** (legacy's real JAXB marshaller) into a `ByteArrayOutputStream` and returns
+the raw bytes. `HistoryController.exportHistory` streams those bytes back with
+`Content-Disposition: attachment; filename="history.xml"`; the frontend downloads the
+response `Blob` directly — it does **not** hand-build XML client-side anymore.
+
+**Real schema** (do not confuse with a plausible-looking invented one):
+
+```xml
+<history>
+  <sequence date="...">
+    <rename dir="..." from="..." to="..." />
+  </sequence>
+</history>
 ```
-HistoryPanel
-├── HistoryHeaderToolbar
-│   ├── SearchHistoryInput
-│   ├── ClearHistoryButton
-│   └── ExportHistoryButton
-├── TransactionTimeline
-│   └── TransactionCard (Timestamp, Item Count, Actions)
-│       └── TransactionElementTable (Source Path, Target Path, Status, Rollback Row Toggle)
-└── RollbackConfirmationModal
-```
 
-### Props & State Types (TypeScript)
+The element tag is **`<rename>`**, not `<element>`; `dir` is a required attribute (the folder
+the `from`/relative-`to` are resolved against); there is **no `count` attribute** on
+`<sequence>`. This is the schema `~/.filebot/history.xml` itself uses, so any tool round-
+tripping this export must match it exactly to interoperate with legacy FileBot's own history
+file.
+
+`format` only ever produces XML today — a `csv`/`html` value is silently accepted by the
+`@RequestParam` binding and produces the same XML bytes regardless (see §6).
+
+## 6. Deliberate no-ops / accepted limitations
+
+- **`clearHistory()` is an intentional no-op.** No legacy UI action for "clear history" was
+  ever confirmed to exist (`HistoryDialog`'s full inventory has no such button/menu item).
+  Implementing real deletion of `~/.filebot/history.xml` needs an explicit product decision
+  first — silently wiping a user's undo log on a guess would be a genuine data-loss risk. If
+  this is confirmed in scope, `HistorySpooler` would need a `truncate()`/clear-equivalent
+  primitive that does not currently exist as a public operation.
+- **`FileAction` in `HistoryElementDto` is hardcoded to `MOVE`** in `getTransactionHistory()`,
+  regardless of which action (`COPY`/`HARDLINK`/`SYMLINK`) actually produced the entry. This
+  mirrors a genuine legacy limitation: `History.Element` never persisted an action-type field
+  either, so there is no data to read the real value back from without a history-file schema
+  change (which would break compatibility with existing `~/.filebot/history.xml` files). Not
+  considered a bug to silently "fix" — a schema migration would need to be a deliberate,
+  versioned decision.
+- **`format=csv`/`format=html` are accepted but not implemented.** Only real XML export
+  exists; do not assume the `format` parameter does anything today.
+- **No directory-remap recovery flow.** If a rollback's original parent directory no longer
+  exists, `StandardRenameAction.revert()` simply throws and the row is reported as a failure
+  with the exception message — there is no UI flow to let the user pick a different
+  destination directory and retry, unlike some legacy dialogs' recovery prompts.
+
+## 7. Stable transaction IDs
+
+`HistoryServiceImpl` derives every transaction's ID as
+`String.valueOf(sequence.date().getTime())` (or the literal string `"unknown"` if a sequence
+somehow has no date) — **not** a fresh `UUID.randomUUID()` per call. This is what makes
+`GET /api/v1/history/{id}` and rollback-by-ID actually work: a random ID minted per call to
+`getTransactionHistory()` would never match anything from a prior call, since nothing persists
+it. Because the ID is derived from data already present in `history.xml`, it is stable across
+backend restarts and across every read.
+
+Both `getTransactionHistory()` and `rollbackTransaction()` resolve a target's original path
+identically: `from = new File(element.dir(), element.from())`, and `to = new
+File(element.to())`, falling back to `new File(element.dir(), element.to())` when
+`element.to()` is not already absolute. Keep this resolution logic in sync between the two
+methods if either changes — a divergence would make rollback silently target the wrong file.
+
+## 8. Frontend contract (`historyApi`, `frontend/src/api/client.ts`)
 
 ```typescript
-import { HistoryTransaction } from './types';
-
-export interface HistoryPanelState {
-  transactions: HistoryTransaction[];
-  selectedTransactionId: string | null;
-  filterQuery: string;
-  isRollingBack: boolean;
-}
+getHistory(): Promise<HistoryTransaction[]>                        // GET  /history
+rollbackTransaction(transactionId, targetPathsToRollback?)          // POST /history/rollback
+  : Promise<RollbackResult>
+clearHistory(): Promise<void>                                       // DELETE /history (no-op)
+exportHistory(format = 'xml'): Promise<Blob>                        // GET /history/export
 ```
-
----
-
-## Section D: Dialogs, Modals & Edge Cases
-
-1. **Missing Target File Alert:**
-   - Prompted during rollback if the file at `targetPath` was moved or deleted outside FileBot.
-2. **Directory Deletion Warning Modal:**
-   - Prompted when reversing file operations will prune empty parent directories.
-
----
-
-## AUDIT ADDENDUM (2026-09-19) — DO NOT SILENTLY OVERWRITE ORIGINAL CONTENT ABOVE
-
-Full detail: `specs/audit/08_history_and_list_audit.md`. **This is the second most
-severe area in the audit after Rename/Format** — the rollback feature this whole
-document specifies performs no file operations at all, and nothing feeds it real
-data in the first place.
-
-- **Gap 3 (BROKEN_FUNCTIONALITY, root cause, fix this first):** renames executed
-  through the new app are **never written to history anywhere** —
-  `RenameWorkspaceServiceImpl` has zero references to `HistorySpooler`/rollback/
-  revert (confirmed via grep). `HistoryPanel` can therefore only ever display
-  transactions produced by a legacy Swing session or CLI run against the same
-  `~/.filebot` profile — it is a read-only viewer of *other tools'* history, not of
-  the app it lives in. Fix: call `net.filebot.HistorySpooler.getInstance()
-  .append(renameMap.entrySet())` immediately after each successful batch rename in
-  `RenameWorkspaceServiceImpl.executeRename()`, mirroring
-  `CmdlineOperations.writeHistory()` exactly (including its `action.canRevert()`
-  gate).
-- **Gap 2 (DATA_INTEGRITY_RISK, worse than a no-op):**
-  `HistoryServiceImpl.rollbackTransaction()` performs **no file operation
-  whatsoever** — it only checks `File.exists()` and reports success/failure based
-  on that alone. Clicking "Undo" on a row whose target file happens to still exist
-  **falsely reports a successful rollback while touching nothing on disk.** Fix:
-  call `net.filebot.StandardRenameAction.revert(File current, File original)` per
-  target path — it already handles MOVE/COPY/HARDLINK/SYMLINK/KEEPLINK reversal
-  purely from filesystem state (legacy's `History.Element` schema carries no
-  action-type field at all, so no schema change is needed to do this correctly).
-- **Gap 4 (DATA_INTEGRITY_RISK):** `HistoryServiceImpl.clearHistory()`'s body is
-  literally the comment `// Session history clear` — it does nothing.
-  `~/.filebot/history.xml` is never touched even though the UI reports success.
-  **Also: this spec's own "Clear History" feature (§A) has no legacy precedent** —
-  a full inventory of `HistoryDialog`'s buttons/menus found no such action anywhere
-  in legacy. Confirm with the product owner whether this should be a net-new
-  feature (in which case it needs a real implementation) or removed from scope.
-- **Gap 5 + spec correction (BROKEN_FUNCTIONALITY):** two independent,
-  mutually-inconsistent export paths exist — the backend correctly reuses
-  `net.filebot.History.exportHistory()` (good) but writes to the server's own
-  working directory, never surfaced to the Electron user; React then **discards
-  that response and hand-builds its own incompatible XML** client-side (wrong tag
-  name, missing required attribute, invented attribute). **This spec's §A line 24
-  XML schema is also wrong** — the real JAXB schema (from `History.java`'s
-  annotations) is `<history><sequence date="...">` (no `count` attribute)
-  `<rename dir="..." from="..." to="..."/></sequence></history>` — tag is
-  `<rename>`, not `<element>`, and `dir` is a required attribute the spec omits.
-  Any importer/exporter must be built against this corrected schema, not the
-  spec's literal text, to stay compatible with existing `~/.filebot/history.xml`
-  files.
-- **Gap 1 (BROKEN_FUNCTIONALITY):** see specs/01 addendum AS-3/AS-4 — History has
-  no discoverable entry point; it is reachable only via a sidebar tab mislabeled
-  "List."
-- **Spec correction:** §A's claim that MOVE-rollback "deletes empty parent
-  directories of `to` if empty" does not correspond to any code found in
-  `StandardRenameAction.revert()` or its call sites — no such pruning logic exists
-  in the reviewed source.
-- Full gap table (Gap 1 through Gap 10, including the non-deterministic
-  transaction-ID bug that breaks `GET /api/v1/history/{id}`) is in the audit file.

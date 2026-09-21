@@ -29,7 +29,7 @@ This repository is a decoupled, modernized fork of **FileBot**. It converts the 
 - `src/test/java/net/filebot/backend/`: Unit and integration test suites.
 - `frontend/`: React 18 + TypeScript + Tailwind CSS Single Page Application.
 - `desktop-wrapper/`: Desktop launcher configuration and multi-platform packaging for Electron.
-- `specs/`: Detailed markdown specifications (`00_SYSTEM_ARCHITECTURE_AND_MODELS.md` through `10_CROSS_PLATFORM_PACKAGING_GUIDE.md` and `PLAN.md`).
+- `specs/`: As-built markdown specifications, one per functional area (`00_SYSTEM_ARCHITECTURE_AND_MODELS.md` through `10_CROSS_PLATFORM_PACKAGING_GUIDE.md`). Each documents the real frontend + backend implementation (REST/WebSocket contracts, DTOs, exact legacy `net.filebot.*` classes reused) plus a "Known Gaps / Deliberately Deferred" section — read the relevant spec before changing a feature area, and update it when behavior changes.
 
 ---
 

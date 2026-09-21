@@ -6,7 +6,8 @@ import {
   FileText,
   FileCheck,
   Filter,
-  Wand2,
+  ListOrdered,
+  History,
   Settings,
   RotateCcw,
   Terminal,
@@ -27,13 +28,33 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   onUndo,
   onOpenDevLogs,
 }) => {
+  const hoverTimerRef = React.useRef<number | null>(null);
+
+  // Dragging files over a different sidebar tab live-previews/switches to it, mirroring legacy
+  // MainFrame.PanelSelectionList.DragDropListener (specs/audit/01_appshell_and_navigation_audit.md AS-6).
+  const handleTabDragEnter = (tab: WorkspaceTab) => {
+    if (tab === activeTab) return;
+    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = window.setTimeout(() => {
+      onSelectTab(tab);
+      hoverTimerRef.current = null;
+    }, 400);
+  };
+
+  const handleTabDragLeave = () => {
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
   const tabs: { id: WorkspaceTab; label: string; icon: React.ReactNode; color: string }[] = [
-    { id: 'LIST', label: 'List', icon: <Wand2 className="w-6 h-6" />, color: 'text-amber-500' },
     { id: 'RENAME', label: 'Rename', icon: <FolderEdit className="w-6 h-6" />, color: 'text-amber-500' },
     { id: 'ANALYZE', label: 'Filter', icon: <Filter className="w-6 h-6" />, color: 'text-slate-600' },
     { id: 'EPISODES', label: 'Episodes', icon: <Globe className="w-6 h-6" />, color: 'text-blue-500' },
     { id: 'SUBTITLES', label: 'Subtitles', icon: <FileText className="w-6 h-6" />, color: 'text-slate-600' },
     { id: 'SFV', label: 'SFV', icon: <FileCheck className="w-6 h-6" />, color: 'text-emerald-600' },
+    { id: 'LIST', label: 'List', icon: <ListOrdered className="w-6 h-6" />, color: 'text-amber-500' },
+    { id: 'HISTORY', label: 'History', icon: <History className="w-6 h-6" />, color: 'text-slate-600' },
   ];
 
   return (
@@ -45,6 +66,10 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
             <button
               key={tab.id}
               onClick={() => onSelectTab(tab.id)}
+              onDragEnter={() => handleTabDragEnter(tab.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDragLeave={handleTabDragLeave}
+              onDrop={handleTabDragLeave}
               className={`w-full flex flex-col items-center justify-center py-2.5 px-0.5 rounded-[3px] text-[11px] font-sans transition-all duration-100 ${
                 isActive
                   ? 'bg-[#0070e0] text-white font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]'

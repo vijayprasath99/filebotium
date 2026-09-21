@@ -214,7 +214,7 @@ In modern Electron (v30+), direct `File.path` access on DOM events has been depr
 
 ```javascript
 // desktop-wrapper/preload.js
-const { contextBridge, webUtils } = require('electron');
+const { contextBridge, webUtils, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   getPath: (file) => {
@@ -223,11 +223,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     } catch (e) {
       return (file && file.path) ? file.path : '';
     }
-  }
+  },
+  revealInFolder: (filePath) => ipcRenderer.invoke('reveal-in-folder', filePath),
+  moveToTrash: (filePath) => ipcRenderer.invoke('move-to-trash', filePath)
 });
 ```
 
-On the frontend, all file drop and input handlers consume paths using the unified `getFilePath` / `getFilePaths` utility (`frontend/src/utils/fileUtils.ts`):
+`revealInFolder`/`moveToTrash` are handled in the main process (`desktop-wrapper/main.js`) via
+`ipcMain.handle('reveal-in-folder', ...)` / `ipcMain.handle('move-to-trash', ...)`, calling
+Electron's `shell.showItemInFolder(filePath)` / `shell.trashItem(filePath)` respectively and
+returning `{ success: boolean, error?: string }`. These back the Analyze panel's context menu
+("Reveal"/"Reveal Folder"/"Move to Trash") and the Rename workspace's double-click-to-reveal on
+Original Files rows (see spec 01 §5 and spec 07 §7) — calling either from a plain browser tab
+(no `window.electronAPI`) resolves to `{ success: false, error: 'Not available outside the
+desktop app.' }` rather than throwing.
+
+On the frontend, all file drop and input handlers consume paths using the unified `getFilePath` / `getFilePaths` utility (`frontend/src/utils/fileUtils.ts`); reveal/trash actions go through the sibling `revealInFileManager` / `moveToTrash` helpers in the same file:
 
 ```typescript
 export function getFilePath(file: File): string {

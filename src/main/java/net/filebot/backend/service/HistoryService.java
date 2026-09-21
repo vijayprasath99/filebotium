@@ -14,5 +14,5 @@ public interface HistoryService {
 
   void clearHistory();
 
-  void exportHistory(String format, String outputPath);
+  byte[] exportHistory(String format);
 }

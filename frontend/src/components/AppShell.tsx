@@ -8,20 +8,22 @@ import { SubtitlePanel } from './SubtitlePanel';
 import { SfvPanel } from './SfvPanel';
 import { AnalyzePanel } from './AnalyzePanel';
 import { HistoryPanel } from './HistoryPanel';
+import { ListPanelPlaceholder } from './ListPanelPlaceholder';
 import { SettingsPanel } from './SettingsPanel';
 import { FormatEditorModal } from './FormatEditorModal';
 import { DevLogsModal } from './DevLogsModal';
 import { websocketClient } from '../api/websocketClient';
-import { appApi, historyApi } from '../api/client';
+import { appApi, historyApi, settingsApi } from '../api/client';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const TAB_ORDER: WorkspaceTab[] = [
-  'LIST',
   'RENAME',
   'ANALYZE',
   'EPISODES',
   'SUBTITLES',
   'SFV',
+  'LIST',
+  'HISTORY',
 ];
 
 export const AppShell: React.FC = () => {
@@ -41,14 +43,40 @@ export const AppShell: React.FC = () => {
         setSystemStatus(null);
       });
 
+    // Load the user's saved format preset (specs/audit/09_settings_audit.md SET-13 - this call
+    // never happened before, so Settings' "Default Format Presets" tab had no effect on Rename).
+    settingsApi
+      .getSettings()
+      .then((settings) => {
+        if (settings?.tvFormat) {
+          setFormatExpression(settings.tvFormat);
+        }
+      })
+      .catch(() => {
+        // Keep the built-in default if settings can't be loaded.
+      });
+
     // Auto-connect STOMP WebSocket client for live progress and debugging
     websocketClient.connect();
+
+    const unsubscribeNotifications = websocketClient.subscribe(
+      '/topic/notifications',
+      (payload: { level?: string; message?: string }) => {
+        if (!payload?.message) return;
+        setNotification({
+          text: payload.message,
+          isError: payload.level === 'ERROR' || payload.level === 'WARNING',
+        });
+      }
+    );
+
     return () => {
+      unsubscribeNotifications();
       websocketClient.disconnect();
     };
   }, []);
 
-  // Keyboard shortcut navigation (Ctrl/Cmd + 1..6) and Dev Logs (Ctrl/Cmd + Shift + D)
+  // Keyboard shortcut navigation (Ctrl/Cmd + 1..7) and Dev Logs (Ctrl/Cmd + Shift + D)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
@@ -57,7 +85,7 @@ export const AppShell: React.FC = () => {
         return;
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '6') {
+      if ((e.ctrlKey || e.metaKey) && e.key >= '1' && e.key <= '7') {
         const index = parseInt(e.key, 10) - 1;
         if (TAB_ORDER[index]) {
           e.preventDefault();
@@ -71,10 +99,16 @@ export const AppShell: React.FC = () => {
 
   const handleFilesDropped = useCallback(
     (paths: string[]) => {
-      appApi.intakeFiles(paths, activeTab).catch((err) => {
-        console.warn('Failed to register dropped files with backend:', err);
-      });
-      setDroppedFiles((prev) => [...prev, ...paths]);
+      appApi
+        .intakeFiles(paths, activeTab)
+        .then((res) => {
+          const accepted = res.acceptedFiles.map((f) => f.path);
+          setDroppedFiles((prev) => [...prev, ...accepted]);
+        })
+        .catch((err) => {
+          console.warn('Failed to register dropped files with backend:', err);
+          setDroppedFiles((prev) => [...prev, ...paths]);
+        });
     },
     [activeTab]
   );
@@ -158,13 +192,16 @@ export const AppShell: React.FC = () => {
                 onOpenFormatEditor={() => setIsFormatEditorOpen(true)}
               />
             )}
-            {activeTab === 'EPISODES' && <EpisodesExplorerPanel />}
+            {activeTab === 'EPISODES' && (
+              <EpisodesExplorerPanel files={droppedFiles} onNavigateTab={handleNavigateTab} />
+            )}
             {activeTab === 'SUBTITLES' && <SubtitlePanel files={droppedFiles} />}
             {activeTab === 'SFV' && <SfvPanel files={droppedFiles} />}
             {activeTab === 'ANALYZE' && (
               <AnalyzePanel files={droppedFiles} onNavigateTab={handleNavigateTab} />
             )}
-            {activeTab === 'LIST' && <HistoryPanel />}
+            {activeTab === 'LIST' && <ListPanelPlaceholder files={droppedFiles} />}
+            {activeTab === 'HISTORY' && <HistoryPanel />}
             {activeTab === 'SETTINGS' && <SettingsPanel />}
           </GlobalDropZone>
         </div>
@@ -173,7 +210,16 @@ export const AppShell: React.FC = () => {
       <FormatEditorModal
         isOpen={isFormatEditorOpen}
         initialExpression={formatExpression}
-        onSave={setFormatExpression}
+        onSave={(expression) => {
+          setFormatExpression(expression);
+          settingsApi
+            .getSettings()
+            .then((settings) => settingsApi.updateSettings({ ...settings, tvFormat: expression }))
+            .catch(() => {
+              // Non-fatal: the expression is still applied for this session even if it can't
+              // be persisted back to Settings.
+            });
+        }}
         onClose={() => setIsFormatEditorOpen(false)}
       />
 

@@ -20,7 +20,7 @@ export type HistoryStatus = 'COMPLETED' | 'ROLLED_BACK' | 'FAILED';
 
 export type HashType = 'CRC32' | 'MD5' | 'SHA_1' | 'SHA_256' | 'OPENSUBTITLES';
 
-export type ChecksumStatus = 'OK' | 'MISMATCH' | 'MISSING' | 'ERROR' | 'COMPUTING';
+export type ChecksumStatus = 'OK' | 'MISMATCH' | 'MISSING' | 'ERROR' | 'COMPUTING' | 'WARNING';
 
 export type SubtitleProviderType = 'OPEN_SUBTITLES' | 'SHOOTER';
 
@@ -28,7 +28,7 @@ export type SubtitleFormat = 'SRT' | 'SUB' | 'ASS' | 'VTT';
 
 export type NotificationLevel = 'INFO' | 'WARNING' | 'ERROR' | 'SUCCESS';
 
-export type WorkspaceTab = 'RENAME' | 'EPISODES' | 'SUBTITLES' | 'SFV' | 'ANALYZE' | 'LIST' | 'SETTINGS';
+export type WorkspaceTab = 'RENAME' | 'EPISODES' | 'SUBTITLES' | 'SFV' | 'ANALYZE' | 'LIST' | 'HISTORY' | 'SETTINGS';
 
 export type LanguageCode =
   | 'EN'
@@ -128,7 +128,8 @@ export interface SubtitleDescriptor {
   language: LanguageCode;
   format: SubtitleFormat;
   score: number;
-  downloadUrl: string;
+  downloadUrl: string | null;
+  videoFilePath: string;
 }
 
 export interface ChecksumEntry {
