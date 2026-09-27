@@ -1,7 +1,5 @@
 package net.filebot.util.ui;
 
-import net.filebot.Settings;
-
 import static net.filebot.Logging.*;
 
 import java.awt.Color;
