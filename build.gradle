@@ -181,6 +181,14 @@ dependencies {
   testImplementation "org.junit.jupiter:junit-jupiter-params:${junitVersion}"
   testImplementation "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
   testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${junitVersion}"
+
+  // WireMock - stubs external provider metadata APIs (in-JVM, no Docker required)
+  testImplementation('org.wiremock:wiremock:3.9.2') {
+    exclude group: 'commons-logging', module: 'commons-logging'
+  }
+
+  // Playwright for Java - drives the real React UI served by the Spring Boot backend
+  testImplementation 'com.microsoft.playwright:playwright:1.48.0'
 }
 
 def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
@@ -246,12 +254,31 @@ tasks.register('cleanFrontend', Delete) {
 clean.dependsOn 'cleanFrontend'
 processResources.dependsOn 'copyFrontend'
 
+compileTestJava {
+  moduleOptions {
+    compileOnClasspath = true
+  }
+}
+
 test {
   useJUnitPlatform()
   testLogging {
     events "passed", "skipped", "failed"
     exceptionFormat "full"
   }
+  moduleOptions {
+    // WireMock's shaded/relocated slf4j classes and Playwright's driver jar do not have valid
+    // module descriptors - run tests on the classpath instead of the module path.
+    runOnClasspath = true
+  }
+}
+
+tasks.register('installPlaywrightBrowsers', JavaExec) {
+  group = 'verification'
+  description = 'Downloads the Chromium browser binary used by the Playwright E2E tests'
+  classpath = sourceSets.test.runtimeClasspath
+  mainClass = 'com.microsoft.playwright.CLI'
+  args = ['install', 'chromium']
 }
 
 jar {

@@ -4,6 +4,7 @@ import java.io.File;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -50,14 +51,41 @@ public class RenameWorkspaceServiceImpl implements RenameWorkspaceService {
 
   private final NameSimilarityMetric nameSimilarityMetric = new NameSimilarityMetric();
   private final TaskProgressPublisher progressPublisher;
+  private final Map<ProviderType, EpisodeListProvider> episodeProviders;
+  private final Map<ProviderType, MovieIdentificationService> movieProviders;
 
   public RenameWorkspaceServiceImpl() {
-    this(null);
+    this(defaultEpisodeProviders(), defaultMovieProviders(), null);
+  }
+
+  public RenameWorkspaceServiceImpl(TaskProgressPublisher progressPublisher) {
+    this(defaultEpisodeProviders(), defaultMovieProviders(), progressPublisher);
   }
 
   @Autowired
-  public RenameWorkspaceServiceImpl(TaskProgressPublisher progressPublisher) {
+  public RenameWorkspaceServiceImpl(
+      Map<ProviderType, EpisodeListProvider> episodeProviders,
+      Map<ProviderType, MovieIdentificationService> movieProviders,
+      TaskProgressPublisher progressPublisher) {
+    this.episodeProviders = episodeProviders != null ? episodeProviders : defaultEpisodeProviders();
+    this.movieProviders = movieProviders != null ? movieProviders : defaultMovieProviders();
     this.progressPublisher = progressPublisher;
+  }
+
+  private static Map<ProviderType, EpisodeListProvider> defaultEpisodeProviders() {
+    Map<ProviderType, EpisodeListProvider> providers = new EnumMap<>(ProviderType.class);
+    providers.put(ProviderType.THE_TVDB, WebServices.TheTVDB);
+    providers.put(ProviderType.THE_MOVIE_DB, WebServices.TheMovieDB_TV);
+    providers.put(ProviderType.ANI_DB, WebServices.AniDB);
+    providers.put(ProviderType.TV_MAZE, WebServices.TVmaze);
+    return providers;
+  }
+
+  private static Map<ProviderType, MovieIdentificationService> defaultMovieProviders() {
+    Map<ProviderType, MovieIdentificationService> providers = new EnumMap<>(ProviderType.class);
+    providers.put(ProviderType.OMDB, WebServices.OMDb);
+    providers.put(ProviderType.THE_MOVIE_DB, WebServices.TheMovieDB);
+    return providers;
   }
 
   @Override
@@ -178,22 +206,14 @@ public class RenameWorkspaceServiceImpl implements RenameWorkspaceService {
   }
 
   private EpisodeListProvider resolveEpisodeProvider(ProviderType type) {
-    if (type == null) {
-      return WebServices.TheTVDB;
-    }
-    return switch (type) {
-      case THE_MOVIE_DB -> WebServices.TheMovieDB_TV;
-      case ANI_DB -> WebServices.AniDB;
-      case TV_MAZE -> WebServices.TVmaze;
-      default -> WebServices.TheTVDB;
-    };
+    EpisodeListProvider provider = type != null ? episodeProviders.get(type) : null;
+    return provider != null ? provider : episodeProviders.get(ProviderType.THE_TVDB);
   }
 
   private MovieIdentificationService resolveMovieProvider(ProviderType type) {
-    if (type == ProviderType.OMDB) {
-      return WebServices.OMDb;
-    }
-    return WebServices.TheMovieDB;
+    MovieIdentificationService provider =
+        type == ProviderType.OMDB ? movieProviders.get(ProviderType.OMDB) : null;
+    return provider != null ? provider : movieProviders.get(ProviderType.THE_MOVIE_DB);
   }
 
   private Locale resolveLocale(LanguageCode language) {
